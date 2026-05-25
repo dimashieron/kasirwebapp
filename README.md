@@ -1,4 +1,4 @@
-[PANDUAN_SETUP.md](https://github.com/user-attachments/files/28211899/PANDUAN_SETUP.md)
+
 # 🛒 Kasir Warung - Panduan Setup Lengkap
 
 ## ✅ Daftar File yang Perlu Dibuat
