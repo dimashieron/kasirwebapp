@@ -4,72 +4,76 @@
 
 const Dashboard = (() => {
 
-  function getData(params) {
+  function getData() {
     try {
-      Auth.validateSession(params.token, null);
       const tz = Session.getScriptTimeZone();
       const now = new Date();
       const todayStr = Utilities.formatDate(now, tz, 'yyyyMMdd');
 
-      // Transaksi hari ini
       const trxRows = Database.getAllRows('Transaksi');
-      const todayTrx = trxRows.filter(r => {
+      const todayTrx = trxRows.filter(function(r) {
         if (!r[1]) return false;
         return Utilities.formatDate(new Date(r[1]), tz, 'yyyyMMdd') === todayStr;
       });
 
-      const totalPenjualan = todayTrx.reduce((sum, r) => sum + (parseFloat(r[7]) || 0), 0);
+      const totalPenjualan = todayTrx.reduce(function(s, r) {
+        return s + (parseFloat(r[7]) || 0);
+      }, 0);
       const jumlahTransaksi = todayTrx.length;
 
-      // Pengeluaran hari ini
       const pengeluaranRows = Database.getAllRows('Pengeluaran');
-      const todayPengeluaran = pengeluaranRows.filter(r => {
+      const todayPengeluaran = pengeluaranRows.filter(function(r) {
         if (!r[1]) return false;
         return Utilities.formatDate(new Date(r[1]), tz, 'yyyyMMdd') === todayStr;
       });
-      const totalPengeluaran = todayPengeluaran.reduce((sum, r) => sum + (parseFloat(r[4]) || 0), 0);
+      const totalPengeluaran = todayPengeluaran.reduce(function(s, r) {
+        return s + (parseFloat(r[4]) || 0);
+      }, 0);
 
-      // Produk terlaris (hari ini dari detail transaksi)
-      const todayTrxIds = new Set(todayTrx.map(r => String(r[0])));
+      const todayTrxIds = {};
+      todayTrx.forEach(function(r) { todayTrxIds[String(r[0])] = true; });
+
       const detailRows = Database.getAllRows('DetailTransaksi');
       const menuSales = {};
-      detailRows.forEach(r => {
-        if (todayTrxIds.has(String(r[1]))) {
+      detailRows.forEach(function(r) {
+        if (todayTrxIds[String(r[1])]) {
           const id = r[2];
           const nama = r[3];
           const qty = parseInt(r[4]) || 0;
-          if (!menuSales[id]) menuSales[id] = { id, nama, total: 0 };
+          if (!menuSales[id]) menuSales[id] = { id: id, nama: nama, total: 0 };
           menuSales[id].total += qty;
         }
       });
       const produkTerlaris = Object.values(menuSales)
-        .sort((a, b) => b.total - a.total)
+        .sort(function(a, b) { return b.total - a.total; })
         .slice(0, 5);
 
-      // Stok hampir habis
       const menuRows = Database.getAllRows('Menu');
       const stokHampirHabis = menuRows
-        .filter(r => parseFloat(r[5]) <= 5 && String(r[8]) === 'aktif')
-        .map(r => ({ id: r[0], nama: r[1], stok: r[5], satuan: r[6] }))
+        .filter(function(r) { return parseFloat(r[5]) <= 5 && String(r[8]) === 'aktif'; })
+        .map(function(r) { return { id: r[0], nama: r[1], stok: r[5], satuan: r[6] }; })
         .slice(0, 5);
 
-      // Bahan baku stok kritis
       const bahanRows = Database.getAllRows('BahanBaku');
       const bahanKritis = bahanRows
-        .filter(r => parseFloat(r[2]) <= parseFloat(r[5]))
-        .map(r => ({ id: r[0], nama: r[1], stok: r[2], minimum: r[5], satuan: r[3] }))
+        .filter(function(r) { return parseFloat(r[2]) <= parseFloat(r[5]); })
+        .map(function(r) { return { id: r[0], nama: r[1], stok: r[2], minimum: r[5], satuan: r[3] }; })
         .slice(0, 5);
 
-      // Grafik penjualan 7 hari terakhir
       const grafik = getLast7DaysSales(trxRows, tz);
 
-      return Utilities.response(true, 'OK', {
-        totalPenjualan, jumlahTransaksi, totalPengeluaran,
+      return Utils.response(true, 'OK', {
+        totalPenjualan: totalPenjualan,
+        jumlahTransaksi: jumlahTransaksi,
+        totalPengeluaran: totalPengeluaran,
         labaBersih: totalPenjualan - totalPengeluaran,
-        produkTerlaris, stokHampirHabis, bahanKritis, grafik
+        produkTerlaris: produkTerlaris,
+        stokHampirHabis: stokHampirHabis,
+        bahanKritis: bahanKritis,
+        grafik: grafik
       });
-    } catch (e) {
-      return Utilities.response(false, e.message);
+    } catch(e) {
+      return Utils.response(false, e.message);
     }
   }
 
@@ -80,18 +84,22 @@ const Dashboard = (() => {
       d.setDate(d.getDate() - i);
       const dateStr = Utilities.formatDate(d, tz, 'yyyyMMdd');
       const labelStr = Utilities.formatDate(d, tz, 'dd/MM');
-      
       const total = trxRows
-        .filter(r => r[1] && Utilities.formatDate(new Date(r[1]), tz, 'yyyyMMdd') === dateStr)
-        .reduce((sum, r) => sum + (parseFloat(r[7]) || 0), 0);
-      
-      result.push({ label: labelStr, total });
+        .filter(function(r) {
+          if (!r[1]) return false;
+          return Utilities.formatDate(new Date(r[1]), tz, 'yyyyMMdd') === dateStr;
+        })
+        .reduce(function(s, r) {
+          return s + (parseFloat(r[7]) || 0);
+        }, 0);
+      result.push({ label: labelStr, total: total });
     }
     return result;
   }
 
-  return { getData };
+  return { getData: getData };
 })();
+
 
 // ============================================================
 // BahanBakuManager
@@ -99,42 +107,46 @@ const Dashboard = (() => {
 
 const BahanBakuManager = (() => {
 
-  function getAll(params) {
+  function getAll() {
     try {
-      Auth.validateSession(params.token, null);
       const rows = Database.getAllRows('BahanBaku');
-      const data = rows.map(r => ({
-        id: r[0], nama: r[1], stok: parseFloat(r[2]) || 0,
-        satuan: r[3], hargaBeli: parseFloat(r[4]) || 0,
-        minimumStok: parseFloat(r[5]) || 0, supplier: r[6],
-        tanggalUpdate: r[7],
-        statusKritis: (parseFloat(r[2]) || 0) <= (parseFloat(r[5]) || 0)
-      }));
-      return Utilities.response(true, 'OK', data);
-    } catch (e) { return Utilities.response(false, e.message); }
+      const data = rows.map(function(r) {
+        return {
+          id: r[0], nama: r[1],
+          stok: parseFloat(r[2]) || 0,
+          satuan: r[3],
+          hargaBeli: parseFloat(r[4]) || 0,
+          minimumStok: parseFloat(r[5]) || 0,
+          supplier: r[6],
+          tanggalUpdate: r[7],
+          statusKritis: (parseFloat(r[2]) || 0) <= (parseFloat(r[5]) || 0)
+        };
+      });
+      return Utils.response(true, 'OK', data);
+    } catch(e) { return Utils.response(false, e.message); }
   }
 
   function add(params) {
     try {
-      const user = Auth.validateSession(params.token, null);
-      if (user.role !== 'admin') return Utilities.response(false, 'Akses ditolak');
-      if (!params.nama) return Utilities.response(false, 'Nama bahan wajib diisi');
+      if (!params.nama) return Utils.response(false, 'Nama bahan wajib');
       const id = Database.generateId('BHN');
       Database.appendRow('BahanBaku', [
-        id, params.nama, parseFloat(params.stok) || 0, params.satuan || 'pcs',
-        parseFloat(params.hargaBeli) || 0, parseFloat(params.minimumStok) || 0,
-        params.supplier || '', new Date()
+        id, params.nama,
+        parseFloat(params.stok) || 0,
+        params.satuan || 'pcs',
+        parseFloat(params.hargaBeli) || 0,
+        parseFloat(params.minimumStok) || 0,
+        params.supplier || '',
+        new Date()
       ]);
-      return Utilities.response(true, 'Bahan baku ditambahkan', { id });
-    } catch (e) { return Utilities.response(false, e.message); }
+      return Utils.response(true, 'Bahan baku ditambahkan', { id: id });
+    } catch(e) { return Utils.response(false, e.message); }
   }
 
   function update(params) {
     try {
-      const user = Auth.validateSession(params.token, null);
-      if (user.role !== 'admin') return Utilities.response(false, 'Akses ditolak');
       const found = Database.findRowById('BahanBaku', params.id);
-      if (!found) return Utilities.response(false, 'Bahan tidak ditemukan');
+      if (!found) return Utils.response(false, 'Bahan tidak ditemukan');
       const row = [
         params.id,
         params.nama || found.data[1],
@@ -146,23 +158,22 @@ const BahanBakuManager = (() => {
         new Date()
       ];
       Database.updateRow('BahanBaku', found.rowIndex, row);
-      return Utilities.response(true, 'Bahan baku diupdate');
-    } catch (e) { return Utilities.response(false, e.message); }
+      return Utils.response(true, 'Bahan baku diupdate');
+    } catch(e) { return Utils.response(false, e.message); }
   }
 
   function remove(params) {
     try {
-      const user = Auth.validateSession(params.token, null);
-      if (user.role !== 'admin') return Utilities.response(false, 'Akses ditolak');
       const found = Database.findRowById('BahanBaku', params.id);
-      if (!found) return Utilities.response(false, 'Bahan tidak ditemukan');
+      if (!found) return Utils.response(false, 'Bahan tidak ditemukan');
       Database.deleteRow('BahanBaku', found.rowIndex);
-      return Utilities.response(true, 'Bahan baku dihapus');
-    } catch (e) { return Utilities.response(false, e.message); }
+      return Utils.response(true, 'Bahan baku dihapus');
+    } catch(e) { return Utils.response(false, e.message); }
   }
 
-  return { getAll, add, update, remove };
+  return { getAll: getAll, add: add, update: update, remove: remove };
 })();
+
 
 // ============================================================
 // ResepManager
@@ -172,51 +183,52 @@ const ResepManager = (() => {
 
   function getAll(params) {
     try {
-      Auth.validateSession(params.token, null);
       const rows = Database.getAllRows('Resep');
       const menuRows = Database.getAllRows('Menu');
       const bahanRows = Database.getAllRows('BahanBaku');
-      const menuMap = {}; menuRows.forEach(r => menuMap[r[0]] = r[1]);
-      const bahanMap = {}; bahanRows.forEach(r => bahanMap[r[0]] = { nama: r[1], satuan: r[3] });
-      
-      let data = rows.map(r => ({
-        id: r[0], idMenu: r[1], idBahan: r[2],
-        jumlahPemakaian: parseFloat(r[3]) || 0,
-        namaMenu: menuMap[r[1]] || '-',
-        namaBahan: bahanMap[r[2]] ? bahanMap[r[2]].nama : '-',
-        satuanBahan: bahanMap[r[2]] ? bahanMap[r[2]].satuan : ''
-      }));
-      
-      if (params.idMenu) data = data.filter(r => String(r.idMenu) === String(params.idMenu));
-      return Utilities.response(true, 'OK', data);
-    } catch (e) { return Utilities.response(false, e.message); }
+      const menuMap = {};
+      menuRows.forEach(function(r) { menuMap[r[0]] = r[1]; });
+      const bahanMap = {};
+      bahanRows.forEach(function(r) { bahanMap[r[0]] = { nama: r[1], satuan: r[3] }; });
+
+      let data = rows.map(function(r) {
+        return {
+          id: r[0], idMenu: r[1], idBahan: r[2],
+          jumlahPemakaian: parseFloat(r[3]) || 0,
+          namaMenu: menuMap[r[1]] || '-',
+          namaBahan: bahanMap[r[2]] ? bahanMap[r[2]].nama : '-',
+          satuanBahan: bahanMap[r[2]] ? bahanMap[r[2]].satuan : ''
+        };
+      });
+
+      if (params && params.idMenu) {
+        data = data.filter(function(r) { return String(r.idMenu) === String(params.idMenu); });
+      }
+      return Utils.response(true, 'OK', data);
+    } catch(e) { return Utils.response(false, e.message); }
   }
 
   function save(params) {
     try {
-      const user = Auth.validateSession(params.token, null);
-      if (user.role !== 'admin') return Utilities.response(false, 'Akses ditolak');
-      const { idMenu, idBahan, jumlahPemakaian } = params;
-      if (!idMenu || !idBahan) return Utilities.response(false, 'ID Menu dan Bahan wajib diisi');
+      if (!params.idMenu || !params.idBahan) return Utils.response(false, 'ID Menu dan Bahan wajib');
       const id = Database.generateId('RSP');
-      Database.appendRow('Resep', [id, idMenu, idBahan, parseFloat(jumlahPemakaian) || 0]);
-      return Utilities.response(true, 'Resep disimpan', { id });
-    } catch (e) { return Utilities.response(false, e.message); }
+      Database.appendRow('Resep', [id, params.idMenu, params.idBahan, parseFloat(params.jumlahPemakaian) || 0]);
+      return Utils.response(true, 'Resep disimpan', { id: id });
+    } catch(e) { return Utils.response(false, e.message); }
   }
 
   function remove(params) {
     try {
-      const user = Auth.validateSession(params.token, null);
-      if (user.role !== 'admin') return Utilities.response(false, 'Akses ditolak');
       const found = Database.findRowById('Resep', params.id);
-      if (!found) return Utilities.response(false, 'Resep tidak ditemukan');
+      if (!found) return Utils.response(false, 'Resep tidak ditemukan');
       Database.deleteRow('Resep', found.rowIndex);
-      return Utilities.response(true, 'Resep dihapus');
-    } catch (e) { return Utilities.response(false, e.message); }
+      return Utils.response(true, 'Resep dihapus');
+    } catch(e) { return Utils.response(false, e.message); }
   }
 
-  return { getAll, save, remove };
+  return { getAll: getAll, save: save, remove: remove };
 })();
+
 
 // ============================================================
 // PengeluaranManager
@@ -226,10 +238,10 @@ const PengeluaranManager = (() => {
 
   function getAll(params) {
     try {
-      Auth.validateSession(params.token, null);
       let rows = Database.getAllRows('Pengeluaran');
-      if (params.tanggalMulai || params.tanggalSelesai) {
-        rows = rows.filter(r => {
+      if (params && (params.tanggalMulai || params.tanggalSelesai)) {
+        rows = rows.filter(function(r) {
+          if (!r[1]) return false;
           const tgl = new Date(r[1]);
           const mulai = params.tanggalMulai ? new Date(params.tanggalMulai) : null;
           const selesai = params.tanggalSelesai ? new Date(params.tanggalSelesai + 'T23:59:59') : null;
@@ -238,34 +250,33 @@ const PengeluaranManager = (() => {
           return true;
         });
       }
-      const data = rows.map(r => ({
-        id: r[0], tanggal: r[1], kategori: r[2],
-        deskripsi: r[3], nominal: parseFloat(r[4]) || 0
-      }));
-      data.sort((a, b) => new Date(b.tanggal) - new Date(a.tanggal));
-      return Utilities.response(true, 'OK', data);
-    } catch (e) { return Utilities.response(false, e.message); }
+      const data = rows.map(function(r) {
+        return { id: r[0], tanggal: r[1], kategori: r[2], deskripsi: r[3], nominal: parseFloat(r[4]) || 0 };
+      });
+      data.sort(function(a, b) { return new Date(b.tanggal) - new Date(a.tanggal); });
+      return Utils.response(true, 'OK', data);
+    } catch(e) { return Utils.response(false, e.message); }
   }
 
   function add(params) {
     try {
-      Auth.validateSession(params.token, null);
-      if (!params.nominal || !params.kategori) return Utilities.response(false, 'Nominal dan kategori wajib');
+      if (!params.nominal || !params.kategori) return Utils.response(false, 'Nominal dan kategori wajib');
       const id = Database.generateId('PGL');
       Database.appendRow('Pengeluaran', [
-        id, params.tanggal ? new Date(params.tanggal) : new Date(),
-        params.kategori, params.deskripsi || '',
+        id,
+        params.tanggal ? new Date(params.tanggal) : new Date(),
+        params.kategori,
+        params.deskripsi || '',
         parseFloat(params.nominal) || 0
       ]);
-      return Utilities.response(true, 'Pengeluaran ditambahkan', { id });
-    } catch (e) { return Utilities.response(false, e.message); }
+      return Utils.response(true, 'Pengeluaran ditambahkan', { id: id });
+    } catch(e) { return Utils.response(false, e.message); }
   }
 
   function update(params) {
     try {
-      Auth.validateSession(params.token, null);
       const found = Database.findRowById('Pengeluaran', params.id);
-      if (!found) return Utilities.response(false, 'Pengeluaran tidak ditemukan');
+      if (!found) return Utils.response(false, 'Tidak ditemukan');
       const row = [
         params.id,
         params.tanggal ? new Date(params.tanggal) : found.data[1],
@@ -274,22 +285,22 @@ const PengeluaranManager = (() => {
         parseFloat(params.nominal) || found.data[4]
       ];
       Database.updateRow('Pengeluaran', found.rowIndex, row);
-      return Utilities.response(true, 'Pengeluaran diupdate');
-    } catch (e) { return Utilities.response(false, e.message); }
+      return Utils.response(true, 'Pengeluaran diupdate');
+    } catch(e) { return Utils.response(false, e.message); }
   }
 
   function remove(params) {
     try {
-      Auth.validateSession(params.token, null);
       const found = Database.findRowById('Pengeluaran', params.id);
-      if (!found) return Utilities.response(false, 'Pengeluaran tidak ditemukan');
+      if (!found) return Utils.response(false, 'Tidak ditemukan');
       Database.deleteRow('Pengeluaran', found.rowIndex);
-      return Utilities.response(true, 'Pengeluaran dihapus');
-    } catch (e) { return Utilities.response(false, e.message); }
+      return Utils.response(true, 'Pengeluaran dihapus');
+    } catch(e) { return Utils.response(false, e.message); }
   }
 
-  return { getAll, add, update, remove };
+  return { getAll: getAll, add: add, update: update, remove: remove };
 })();
+
 
 // ============================================================
 // SupplierManager
@@ -297,112 +308,52 @@ const PengeluaranManager = (() => {
 
 const SupplierManager = (() => {
 
-  function getAll(params) {
+  function getAll() {
     try {
-      Auth.validateSession(params.token, null);
       const rows = Database.getAllRows('Supplier');
-      const data = rows.map(r => ({ id: r[0], nama: r[1], nomorHp: r[2], alamat: r[3], catatan: r[4] }));
-      return Utilities.response(true, 'OK', data);
-    } catch (e) { return Utilities.response(false, e.message); }
+      const data = rows.map(function(r) {
+        return { id: r[0], nama: r[1], nomorHp: r[2], alamat: r[3], catatan: r[4] };
+      });
+      return Utils.response(true, 'OK', data);
+    } catch(e) { return Utils.response(false, e.message); }
   }
 
   function add(params) {
     try {
-      const user = Auth.validateSession(params.token, null);
-      if (user.role !== 'admin') return Utilities.response(false, 'Akses ditolak');
-      if (!params.nama) return Utilities.response(false, 'Nama supplier wajib');
+      if (!params.nama) return Utils.response(false, 'Nama supplier wajib');
       const id = Database.generateId('SUP');
       Database.appendRow('Supplier', [id, params.nama, params.nomorHp || '', params.alamat || '', params.catatan || '']);
-      return Utilities.response(true, 'Supplier ditambahkan', { id });
-    } catch (e) { return Utilities.response(false, e.message); }
+      return Utils.response(true, 'Supplier ditambahkan', { id: id });
+    } catch(e) { return Utils.response(false, e.message); }
   }
 
   function update(params) {
     try {
-      const user = Auth.validateSession(params.token, null);
-      if (user.role !== 'admin') return Utilities.response(false, 'Akses ditolak');
       const found = Database.findRowById('Supplier', params.id);
-      if (!found) return Utilities.response(false, 'Supplier tidak ditemukan');
-      const row = [params.id, params.nama || found.data[1], params.nomorHp || found.data[2], params.alamat || found.data[3], params.catatan || found.data[4]];
-      Database.updateRow('Supplier', found.rowIndex, row);
-      return Utilities.response(true, 'Supplier diupdate');
-    } catch (e) { return Utilities.response(false, e.message); }
+      if (!found) return Utils.response(false, 'Tidak ditemukan');
+      Database.updateRow('Supplier', found.rowIndex, [
+        params.id,
+        params.nama || found.data[1],
+        params.nomorHp || found.data[2],
+        params.alamat || found.data[3],
+        params.catatan || found.data[4]
+      ]);
+      return Utils.response(true, 'Supplier diupdate');
+    } catch(e) { return Utils.response(false, e.message); }
   }
 
   function remove(params) {
     try {
-      const user = Auth.validateSession(params.token, null);
-      if (user.role !== 'admin') return Utilities.response(false, 'Akses ditolak');
       const found = Database.findRowById('Supplier', params.id);
-      if (!found) return Utilities.response(false, 'Supplier tidak ditemukan');
+      if (!found) return Utils.response(false, 'Tidak ditemukan');
       Database.deleteRow('Supplier', found.rowIndex);
-      return Utilities.response(true, 'Supplier dihapus');
-    } catch (e) { return Utilities.response(false, e.message); }
+      return Utils.response(true, 'Supplier dihapus');
+    } catch(e) { return Utils.response(false, e.message); }
   }
 
-  return { getAll, add, update, remove };
+  return { getAll: getAll, add: add, update: update, remove: remove };
 })();
 
-// ============================================================
-// UserManager
-// ============================================================
-
-const UserManager = (() => {
-
-  function getAll(params) {
-    try {
-      const user = Auth.validateSession(params.token, null);
-      if (user.role !== 'admin') return Utilities.response(false, 'Akses ditolak');
-      const rows = Database.getAllRows('User');
-      const data = rows.map(r => ({
-        id: r[0], nama: r[1], username: r[2],
-        role: r[4], status: r[5], tanggalDibuat: r[6]
-      }));
-      return Utilities.response(true, 'OK', data);
-    } catch (e) { return Utilities.response(false, e.message); }
-  }
-
-  function add(params) {
-    try {
-      const user = Auth.validateSession(params.token, null);
-      if (user.role !== 'admin') return Utilities.response(false, 'Akses ditolak');
-      if (!params.nama || !params.username || !params.password) return Utilities.response(false, 'Nama, username, dan password wajib');
-      const id = Database.generateId('USR');
-      Database.appendRow('User', [id, params.nama, params.username, params.password, params.role || 'kasir', params.status || 'aktif', new Date()]);
-      return Utilities.response(true, 'User ditambahkan', { id });
-    } catch (e) { return Utilities.response(false, e.message); }
-  }
-
-  function update(params) {
-    try {
-      const user = Auth.validateSession(params.token, null);
-      if (user.role !== 'admin') return Utilities.response(false, 'Akses ditolak');
-      const found = Database.findRowById('User', params.id);
-      if (!found) return Utilities.response(false, 'User tidak ditemukan');
-      const row = [
-        params.id, params.nama || found.data[1], params.username || found.data[2],
-        params.password || found.data[3], params.role || found.data[4],
-        params.status || found.data[5], found.data[6]
-      ];
-      Database.updateRow('User', found.rowIndex, row);
-      return Utilities.response(true, 'User diupdate');
-    } catch (e) { return Utilities.response(false, e.message); }
-  }
-
-  function remove(params) {
-    try {
-      const user = Auth.validateSession(params.token, null);
-      if (user.role !== 'admin') return Utilities.response(false, 'Akses ditolak');
-      if (String(params.id) === String(user.id)) return Utilities.response(false, 'Tidak dapat menghapus akun sendiri');
-      const found = Database.findRowById('User', params.id);
-      if (!found) return Utilities.response(false, 'User tidak ditemukan');
-      Database.deleteRow('User', found.rowIndex);
-      return Utilities.response(true, 'User dihapus');
-    } catch (e) { return Utilities.response(false, e.message); }
-  }
-
-  return { getAll, add, update, remove };
-})();
 
 // ============================================================
 // LaporanManager
@@ -412,20 +363,18 @@ const LaporanManager = (() => {
 
   function get(params) {
     try {
-      Auth.validateSession(params.token, null);
       const tz = Session.getScriptTimeZone();
-      const { periode, tanggalMulai, tanggalSelesai } = params;
-      
-      let mulai, selesai;
       const now = new Date();
-      
+      const periode = params.periode || 'harian';
+      let mulai, selesai;
+
       if (periode === 'harian') {
         mulai = new Date(now.getFullYear(), now.getMonth(), now.getDate());
         selesai = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
       } else if (periode === 'mingguan') {
-        const dayOfWeek = now.getDay();
+        const day = now.getDay();
         mulai = new Date(now);
-        mulai.setDate(now.getDate() - dayOfWeek);
+        mulai.setDate(now.getDate() - day);
         mulai.setHours(0, 0, 0, 0);
         selesai = new Date(mulai);
         selesai.setDate(mulai.getDate() + 6);
@@ -433,81 +382,77 @@ const LaporanManager = (() => {
       } else if (periode === 'bulanan') {
         mulai = new Date(now.getFullYear(), now.getMonth(), 1);
         selesai = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
-      } else if (tanggalMulai && tanggalSelesai) {
-        mulai = new Date(tanggalMulai);
-        selesai = new Date(tanggalSelesai + 'T23:59:59');
       } else {
-        mulai = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        selesai = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+        mulai = params.tanggalMulai ? new Date(params.tanggalMulai) : new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        selesai = params.tanggalSelesai ? new Date(params.tanggalSelesai + 'T23:59:59') : new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
       }
-      
+
       const trxRows = Database.getAllRows('Transaksi');
-      const filtered = trxRows.filter(r => {
+      const filtered = trxRows.filter(function(r) {
         if (!r[1]) return false;
         const d = new Date(r[1]);
         return d >= mulai && d <= selesai;
       });
-      
-      const totalPenjualan = filtered.reduce((s, r) => s + (parseFloat(r[7]) || 0), 0);
-      const totalTransaksi = filtered.length;
-      const totalDiskon = filtered.reduce((s, r) => s + (parseFloat(r[6]) || 0), 0);
-      
-      // Pengeluaran
+
+      const totalPenjualan = filtered.reduce(function(s, r) { return s + (parseFloat(r[7]) || 0); }, 0);
+      const totalDiskon = filtered.reduce(function(s, r) { return s + (parseFloat(r[6]) || 0); }, 0);
+
       const pengeluaranRows = Database.getAllRows('Pengeluaran');
-      const filteredPengeluaran = pengeluaranRows.filter(r => {
+      const filteredPengeluaran = pengeluaranRows.filter(function(r) {
         if (!r[1]) return false;
         const d = new Date(r[1]);
         return d >= mulai && d <= selesai;
       });
-      const totalPengeluaran = filteredPengeluaran.reduce((s, r) => s + (parseFloat(r[4]) || 0), 0);
-      
-      // Hitung modal dari detail transaksi
+      const totalPengeluaran = filteredPengeluaran.reduce(function(s, r) { return s + (parseFloat(r[4]) || 0); }, 0);
+
       const detailRows = Database.getAllRows('DetailTransaksi');
       const menuRows = Database.getAllRows('Menu');
-      const menuMap = {}; menuRows.forEach(r => menuMap[r[0]] = parseFloat(r[4]) || 0);
-      const trxIds = new Set(filtered.map(r => String(r[0])));
-      
+      const menuMap = {};
+      menuRows.forEach(function(r) { menuMap[r[0]] = parseFloat(r[4]) || 0; });
+      const trxIds = {};
+      filtered.forEach(function(r) { trxIds[String(r[0])] = true; });
+
       let totalModal = 0;
-      detailRows.forEach(r => {
-        if (trxIds.has(String(r[1]))) {
-          const modal = (menuMap[r[2]] || 0) * (parseInt(r[4]) || 0);
-          totalModal += modal;
+      detailRows.forEach(function(r) {
+        if (trxIds[String(r[1])]) {
+          totalModal += (menuMap[r[2]] || 0) * (parseInt(r[4]) || 0);
         }
       });
-      
+
       const labaKotor = totalPenjualan - totalModal;
       const labaBersih = labaKotor - totalPengeluaran;
-      
-      // Detail transaksi untuk tabel
+
       const transaksi = filtered
-        .sort((a, b) => new Date(b[1]) - new Date(a[1]))
-        .map(r => ({
-          id: r[0], tanggal: r[1], nomorInvoice: r[2],
-          namaKasir: r[3], totalItem: r[4], subtotal: r[5],
-          diskon: r[6], total: r[7], metodePembayaran: r[8]
-        }));
-      
-      // Perbandingan per metode pembayaran
+        .sort(function(a, b) { return new Date(b[1]) - new Date(a[1]); })
+        .map(function(r) {
+          return {
+            id: r[0], tanggal: r[1], nomorInvoice: r[2],
+            namaKasir: r[3], totalItem: r[4], subtotal: r[5],
+            diskon: r[6], total: r[7], metodePembayaran: r[8]
+          };
+        });
+
       const metodeSummary = {};
-      filtered.forEach(r => {
+      filtered.forEach(function(r) {
         const m = r[8] || 'Tunai';
         if (!metodeSummary[m]) metodeSummary[m] = { metode: m, jumlah: 0, total: 0 };
         metodeSummary[m].jumlah++;
         metodeSummary[m].total += parseFloat(r[7]) || 0;
       });
-      
-      return Utilities.response(true, 'OK', {
-        periode: { mulai, selesai },
-        totalPenjualan, totalTransaksi, totalDiskon,
-        totalPengeluaran, totalModal, labaKotor, labaBersih,
-        transaksi, metodeSummary: Object.values(metodeSummary)
+
+      return Utils.response(true, 'OK', {
+        totalPenjualan: totalPenjualan,
+        totalTransaksi: filtered.length,
+        totalDiskon: totalDiskon,
+        totalPengeluaran: totalPengeluaran,
+        totalModal: totalModal,
+        labaKotor: labaKotor,
+        labaBersih: labaBersih,
+        transaksi: transaksi,
+        metodeSummary: Object.values(metodeSummary)
       });
-    } catch (e) { return Utilities.response(false, e.message); }
+    } catch(e) { return Utils.response(false, e.message); }
   }
 
-  function exportToSheet(params) {
-    return Utilities.response(true, 'Export via browser');
-  }
-
-  return { get, export: exportToSheet };
+  return { get: get };
 })();
