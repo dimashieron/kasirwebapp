@@ -2,144 +2,65 @@
 <html lang="id">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <meta name="apple-mobile-web-app-title" content="Kasir Warung">
-  <meta name="theme-color" content="#f9a8d4">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <base target="_top">
   <title>Kasir Warung</title>
   <?!= include('styles'); ?>
 </head>
 <body>
 
-<!-- SPLASH SCREEN -->
-<div id="splash-screen">
-  <div class="splash-content">
-    <div class="splash-icon">🛒</div>
-    <h1 class="splash-title">Kasir Warung</h1>
-    <p class="splash-sub">Sistem Kasir Digital</p>
-    <div class="splash-loader"><div class="splash-dot"></div><div class="splash-dot"></div><div class="splash-dot"></div></div>
-  </div>
-</div>
-
-<!-- LOGIN PAGE -->
-<div id="login-page" class="page hidden">
-  <div class="login-bg">
-    <div class="login-blob b1"></div>
-    <div class="login-blob b2"></div>
-  </div>
-  <div class="login-card">
-    <div class="login-logo">🛒</div>
-    <h2 class="login-title">Kasir Warung</h2>
-    <p class="login-sub">Masuk ke akun Anda</p>
-    <div class="form-group">
-      <label>Username</label>
-      <input type="text" id="login-username" placeholder="Masukkan username" autocomplete="username">
-    </div>
-    <div class="form-group">
-      <label>Password</label>
-      <div class="input-eye-wrap">
-        <input type="password" id="login-password" placeholder="Masukkan password" autocomplete="current-password">
-        <button class="eye-btn" onclick="togglePass('login-password',this)">👁️</button>
-      </div>
-    </div>
-    <button class="btn btn-primary btn-full" onclick="App.login()" id="login-btn">
-      <span>Masuk</span>
-    </button>
-    <p class="login-hint">Default: admin / admin123</p>
-  </div>
-</div>
-
-<!-- MAIN APP -->
-<div id="app" class="hidden">
-  <!-- TOP BAR -->
+<div id="app">
   <header class="topbar">
     <button class="menu-toggle" onclick="App.toggleSidebar()">☰</button>
     <div class="topbar-brand">🛒 <span id="topbar-title">Dashboard</span></div>
     <div class="topbar-right">
-      <span id="topbar-user" class="topbar-user"></span>
-      <button class="btn-icon" onclick="App.logout()" title="Logout">🚪</button>
+      <button class="btn-icon" onclick="App.toggleDark()">🌙</button>
     </div>
   </header>
 
-  <!-- SIDEBAR OVERLAY -->
   <div id="sidebar-overlay" class="sidebar-overlay" onclick="App.closeSidebar()"></div>
 
-  <!-- SIDEBAR -->
   <aside id="sidebar" class="sidebar">
     <div class="sidebar-header">
       <div class="sidebar-logo">🛒</div>
       <div>
         <div class="sidebar-app-name">Kasir Warung</div>
-        <div id="sidebar-user-info" class="sidebar-user-info"></div>
+        <div class="sidebar-user-info">Selamat datang!</div>
       </div>
     </div>
     <nav class="sidebar-nav">
       <div class="nav-section-label">UTAMA</div>
-      <a href="#" class="nav-item active" data-page="dashboard" onclick="App.navigate('dashboard')">
-        <span class="nav-icon">📊</span><span>Dashboard</span>
-      </a>
-      <a href="#" class="nav-item" data-page="kasir" onclick="App.navigate('kasir')">
-        <span class="nav-icon">🛒</span><span>Kasir</span>
-      </a>
-      <a href="#" class="nav-item" data-page="transaksi" onclick="App.navigate('transaksi')">
-        <span class="nav-icon">📋</span><span>Transaksi</span>
-      </a>
-      <div class="nav-section-label admin-only">MANAJEMEN</div>
-      <a href="#" class="nav-item admin-only" data-page="menu" onclick="App.navigate('menu')">
-        <span class="nav-icon">🍽️</span><span>Menu</span>
-      </a>
-      <a href="#" class="nav-item admin-only" data-page="bahan" onclick="App.navigate('bahan')">
-        <span class="nav-icon">📦</span><span>Bahan Baku</span>
-      </a>
-      <a href="#" class="nav-item admin-only" data-page="resep" onclick="App.navigate('resep')">
-        <span class="nav-icon">📝</span><span>Resep</span>
-      </a>
-      <a href="#" class="nav-item admin-only" data-page="pengeluaran" onclick="App.navigate('pengeluaran')">
-        <span class="nav-icon">💸</span><span>Pengeluaran</span>
-      </a>
-      <a href="#" class="nav-item admin-only" data-page="supplier" onclick="App.navigate('supplier')">
-        <span class="nav-icon">🏪</span><span>Supplier</span>
-      </a>
-      <div class="nav-section-label admin-only">LAPORAN & PENGATURAN</div>
-      <a href="#" class="nav-item admin-only" data-page="laporan" onclick="App.navigate('laporan')">
-        <span class="nav-icon">📈</span><span>Laporan</span>
-      </a>
-      <a href="#" class="nav-item admin-only" data-page="users" onclick="App.navigate('users')">
-        <span class="nav-icon">👥</span><span>Pengguna</span>
-      </a>
-      <div class="nav-section-label">AKUN</div>
-      <a href="#" class="nav-item" data-page="profil" onclick="App.navigate('profil')">
-        <span class="nav-icon">⚙️</span><span>Profil & Sandi</span>
-      </a>
+      <a href="#" class="nav-item active" data-page="dashboard" onclick="App.navigate('dashboard');return false;"><span class="nav-icon">📊</span><span>Dashboard</span></a>
+      <a href="#" class="nav-item" data-page="kasir" onclick="App.navigate('kasir');return false;"><span class="nav-icon">🛒</span><span>Kasir</span></a>
+      <a href="#" class="nav-item" data-page="transaksi" onclick="App.navigate('transaksi');return false;"><span class="nav-icon">📋</span><span>Transaksi</span></a>
+      <div class="nav-section-label">MANAJEMEN</div>
+      <a href="#" class="nav-item" data-page="menu" onclick="App.navigate('menu');return false;"><span class="nav-icon">🍽️</span><span>Menu</span></a>
+      <a href="#" class="nav-item" data-page="bahan" onclick="App.navigate('bahan');return false;"><span class="nav-icon">📦</span><span>Bahan Baku</span></a>
+      <a href="#" class="nav-item" data-page="resep" onclick="App.navigate('resep');return false;"><span class="nav-icon">📝</span><span>Resep</span></a>
+      <a href="#" class="nav-item" data-page="pengeluaran" onclick="App.navigate('pengeluaran');return false;"><span class="nav-icon">💸</span><span>Pengeluaran</span></a>
+      <a href="#" class="nav-item" data-page="supplier" onclick="App.navigate('supplier');return false;"><span class="nav-icon">🏪</span><span>Supplier</span></a>
+      <div class="nav-section-label">LAPORAN</div>
+      <a href="#" class="nav-item" data-page="laporan" onclick="App.navigate('laporan');return false;"><span class="nav-icon">📈</span><span>Laporan</span></a>
     </nav>
-    <div class="sidebar-footer">
-      <button class="btn btn-outline btn-full" onclick="App.logout()">🚪 Keluar</button>
-    </div>
   </aside>
 
-  <!-- PAGE CONTENT -->
   <main id="main-content" class="main-content">
     <div id="page-dashboard" class="page-section"></div>
-    <div id="page-kasir" class="page-section hidden"></div>
-    <div id="page-transaksi" class="page-section hidden"></div>
-    <div id="page-menu" class="page-section hidden"></div>
-    <div id="page-bahan" class="page-section hidden"></div>
-    <div id="page-resep" class="page-section hidden"></div>
-    <div id="page-pengeluaran" class="page-section hidden"></div>
-    <div id="page-supplier" class="page-section hidden"></div>
-    <div id="page-laporan" class="page-section hidden"></div>
-    <div id="page-users" class="page-section hidden"></div>
-    <div id="page-profil" class="page-section hidden"></div>
+    <div id="page-kasir"       class="page-section" style="display:none"></div>
+    <div id="page-transaksi"   class="page-section" style="display:none"></div>
+    <div id="page-menu"        class="page-section" style="display:none"></div>
+    <div id="page-bahan"       class="page-section" style="display:none"></div>
+    <div id="page-resep"       class="page-section" style="display:none"></div>
+    <div id="page-pengeluaran" class="page-section" style="display:none"></div>
+    <div id="page-supplier"    class="page-section" style="display:none"></div>
+    <div id="page-laporan"     class="page-section" style="display:none"></div>
   </main>
 </div>
 
-<!-- MODAL -->
 <div id="modal-overlay" class="modal-overlay hidden" onclick="Modal.closeOnOverlay(event)">
-  <div class="modal-box" id="modal-box">
+  <div class="modal-box">
     <div class="modal-header">
-      <h3 id="modal-title">Modal</h3>
+      <h3 id="modal-title"></h3>
       <button class="modal-close" onclick="Modal.close()">✕</button>
     </div>
     <div class="modal-body" id="modal-body"></div>
@@ -147,25 +68,22 @@
   </div>
 </div>
 
-<!-- CONFIRM DIALOG -->
 <div id="confirm-overlay" class="modal-overlay hidden">
   <div class="modal-box confirm-box">
     <div class="confirm-icon" id="confirm-icon">⚠️</div>
     <h3 id="confirm-title">Konfirmasi</h3>
     <p id="confirm-msg"></p>
     <div class="confirm-btns">
-      <button class="btn btn-outline" onclick="Confirm.cancel()" id="confirm-cancel-btn">Batal</button>
-      <button class="btn btn-danger" onclick="Confirm.ok()" id="confirm-ok-btn">Ya, Hapus</button>
+      <button class="btn btn-outline" onclick="Confirm.cancel()">Batal</button>
+      <button class="btn btn-danger" onclick="Confirm.ok()" id="confirm-ok-btn">Hapus</button>
     </div>
   </div>
 </div>
 
-<!-- TOAST -->
 <div id="toast-container" class="toast-container"></div>
 
-<!-- STRUK CETAK -->
-<div id="print-area" class="hidden"></div>
-
-<?!= include('app_js'); ?>
+<?!= include('app_js1'); ?>
+<?!= include('app_js2'); ?>
+<?!= include('app_js3'); ?>
 </body>
 </html>
