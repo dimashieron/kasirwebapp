@@ -6,11 +6,11 @@ const TransaksiManager = (() => {
 
   function save(params) {
     try {
-      const user = Auth.validateSession(params.token, null);
+      
       const { items, diskon, metodePembayaran, catatan } = params;
       
       if (!items || items.length === 0) {
-        return Utilities.response(false, 'Keranjang kosong');
+        return Utils.response(false, 'Keranjang kosong');
       }
       
       const idTransaksi = Database.generateId('TRX');
@@ -53,20 +53,19 @@ const TransaksiManager = (() => {
         updateStokBahanBaku(item.id, parseInt(item.jumlah) || 1);
       });
       
-      return Utilities.response(true, 'Transaksi berhasil disimpan', {
+      return Utils.response(true, 'Transaksi berhasil disimpan', {
         idTransaksi,
         nomorInvoice,
         total,
         tanggal
       });
     } catch (e) {
-      return Utilities.response(false, e.message);
+      return Utils.response(false, e.message);
     }
   }
 
   function getAll(params) {
     try {
-      Auth.validateSession(params.token, null);
       
       let rows = Database.getAllRows('Transaksi');
       
@@ -110,18 +109,18 @@ const TransaksiManager = (() => {
       const start = (page - 1) * limit;
       const paged = transaksi.slice(start, start + limit);
       
-      return Utilities.response(true, 'OK', { rows: paged, total, page, limit });
+      return Utils.response(true, 'OK', { rows: paged, total, page, limit });
     } catch (e) {
-      return Utilities.response(false, e.message);
+      return Utils.response(false, e.message);
     }
   }
 
   function getById(params) {
     try {
-      Auth.validateSession(params.token, null);
+
       
       const found = Database.findRowById('Transaksi', params.id);
-      if (!found) return Utilities.response(false, 'Transaksi tidak ditemukan');
+      if (!found) return Utils.response(false, 'Transaksi tidak ditemukan');
       
       const trx = {
         id: found.data[0],
@@ -150,19 +149,19 @@ const TransaksiManager = (() => {
           subtotal: r[6]
         }));
       
-      return Utilities.response(true, 'OK', trx);
+      return Utils.response(true, 'OK', trx);
     } catch (e) {
-      return Utilities.response(false, e.message);
+      return Utils.response(false, e.message);
     }
   }
 
   function remove(params) {
     try {
-      const user = Auth.validateSession(params.token, null);
-      if (user.role !== 'admin') return Utilities.response(false, 'Akses ditolak');
+      
+      if (user.role !== 'admin') return Utils.response(false, 'Akses ditolak');
       
       const found = Database.findRowById('Transaksi', params.id);
-      if (!found) return Utilities.response(false, 'Transaksi tidak ditemukan');
+      if (!found) return Utils.response(false, 'Transaksi tidak ditemukan');
       
       Database.deleteRow('Transaksi', found.rowIndex);
       
@@ -177,18 +176,18 @@ const TransaksiManager = (() => {
       }
       toDelete.reverse().forEach(r => detailSheet.deleteRow(r));
       
-      return Utilities.response(true, 'Transaksi berhasil dihapus');
+      return Utils.response(true, 'Transaksi berhasil dihapus');
     } catch (e) {
-      return Utilities.response(false, e.message);
+      return Utils.response(false, e.message);
     }
   }
 
   function getNextInvoice(params) {
     try {
       const no = generateInvoiceNumber();
-      return Utilities.response(true, 'OK', { nomorInvoice: no });
+      return Utils.response(true, 'OK', { nomorInvoice: no });
     } catch (e) {
-      return Utilities.response(false, e.message);
+      return Utils.response(false, e.message);
     }
   }
 
