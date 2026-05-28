@@ -2,7 +2,7 @@
 // KASIR WARUNG - Utilities.gs
 // ============================================================
 
-const Utilities = (() => {
+const Utils = (() => {
 
   function response(success, message, data = null) {
     return { success, message, data };
