@@ -128,14 +128,23 @@ const Database = (() => {
     Logger.log('Database initialization complete');
   }
 
-  function getAllRows(sheetName) {
+function getAllRows(sheetName) {
+  try {
     const sheet = getSheet(sheetName);
-    const lastRow = sheet.getLastRow();
-    if (lastRow <= 1) return [];
+    if (!sheet) return [];
     
-    const data = sheet.getRange(2, 1, lastRow - 1, sheet.getLastColumn()).getValues();
-    return data.filter(row => row[0] !== '');
+    const lastRow = sheet.getLastRow();
+    const lastCol = sheet.getLastColumn();
+    
+    if (lastRow <= 1 || lastCol === 0) return [];
+    
+    const data = sheet.getRange(2, 1, lastRow - 1, lastCol).getValues();
+    return data.filter(row => row[0] !== '' && row[0] !== null && row[0] !== undefined);
+  } catch(e) {
+    Logger.log('getAllRows error [' + sheetName + ']: ' + e.message);
+    return [];
   }
+}
 
   function findRowById(sheetName, id, idColumnIndex = 0) {
     const sheet = getSheet(sheetName);
