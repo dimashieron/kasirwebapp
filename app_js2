@@ -1,0 +1,253 @@
+<script>
+Pages.dashboard = {
+  load: async function() {
+    var el = document.getElementById('page-dashboard');
+    el.innerHTML = '<div class="loading-wrap"><div class="spinner"></div></div>';
+    try {
+      var r = await api('getDashboardData');
+      if (!r||!r.success) { el.innerHTML='<div class="empty-state"><p>'+(r?r.message:'Gagal')+'</p></div>'; return; }
+      var d = r.data;
+      el.innerHTML = '<div class="page-header"><div><div class="page-title">📊 Dashboard</div><div class="page-subtitle">Ringkasan hari ini</div></div><button class="btn btn-outline btn-sm" onclick="Pages.dashboard.load()">🔄 Refresh</button></div>'
+        + '<div class="grid-4" style="margin-bottom:1.25rem">'
+        + '<div class="stat-card"><div class="stat-icon">💰</div><div class="stat-label">Total Penjualan</div><div class="stat-value">'+fmt.currency(d.totalPenjualan)+'</div><div class="stat-sub">Hari ini</div></div>'
+        + '<div class="stat-card"><div class="stat-icon">🧾</div><div class="stat-label">Transaksi</div><div class="stat-value">'+d.jumlahTransaksi+'</div><div class="stat-sub">Hari ini</div></div>'
+        + '<div class="stat-card"><div class="stat-icon">💸</div><div class="stat-label">Pengeluaran</div><div class="stat-value">'+fmt.currency(d.totalPengeluaran)+'</div><div class="stat-sub">Hari ini</div></div>'
+        + '<div class="stat-card"><div class="stat-icon">📈</div><div class="stat-label">Laba Bersih</div><div class="stat-value">'+fmt.currency(d.labaBersih)+'</div><div class="stat-sub">Estimasi</div></div>'
+        + '</div>'
+        + '<div class="grid-2" style="margin-bottom:1.25rem">'
+        + '<div class="card"><div class="card-header"><span class="card-title">📊 Penjualan 7 Hari</span></div><div class="card-body">'+Pages.dashboard.renderChart(d.grafik)+'</div></div>'
+        + '<div class="card"><div class="card-header"><span class="card-title">🔥 Produk Terlaris</span></div><div class="card-body">'
+        + (d.produkTerlaris.length ? d.produkTerlaris.map(function(p,i){ return '<div class="flex items-center justify-between" style="padding:.4rem 0;border-bottom:1px solid var(--border)"><span><strong style="color:var(--primary)">#'+(i+1)+'</strong> '+p.nama+'</span><span class="badge badge-pink">'+p.total+' terjual</span></div>'; }).join('') : '<p class="text-muted text-center" style="padding:1rem">Belum ada data</p>')
+        + '</div></div></div>'
+        + '<div class="grid-2">'
+        + '<div class="card"><div class="card-header"><span class="card-title">⚠️ Stok Hampir Habis</span></div><div class="card-body">'
+        + (d.stokHampirHabis.length ? d.stokHampirHabis.map(function(m){ return '<div class="flex items-center justify-between" style="padding:.4rem 0;border-bottom:1px solid var(--border)"><span>'+m.nama+'</span><span class="badge badge-red">'+m.stok+' '+m.satuan+'</span></div>'; }).join('') : '<p class="text-muted text-center">✅ Stok aman</p>')
+        + '</div></div>'
+        + '<div class="card"><div class="card-header"><span class="card-title">🚨 Bahan Baku Kritis</span></div><div class="card-body">'
+        + (d.bahanKritis.length ? d.bahanKritis.map(function(b){ return '<div class="flex items-center justify-between" style="padding:.4rem 0;border-bottom:1px solid var(--border)"><span>'+b.nama+'</span><span class="badge badge-yellow">'+b.stok+'/'+b.minimum+' '+b.satuan+'</span></div>'; }).join('') : '<p class="text-muted text-center">✅ Aman</p>')
+        + '</div></div></div>';
+    } catch(e) { el.innerHTML='<div class="empty-state"><p>Gagal: '+e.message+'</p></div>'; }
+  },
+  renderChart: function(data) {
+    if (!data||!data.length) return '<p class="text-muted text-center">Tidak ada data</p>';
+    var max = Math.max.apply(null, data.map(function(d){ return d.total; }));
+    if (max===0) max=1;
+    return '<div class="chart-bars">'+data.map(function(d){
+      var h = Math.max(4, Math.round((d.total/max)*140));
+      return '<div class="chart-bar-col"><div class="chart-bar" style="height:'+h+'px" title="'+fmt.currency(d.total)+'"></div><div class="chart-bar-label">'+d.label+'</div></div>';
+    }).join('')+'</div>';
+  }
+};
+
+Pages.kasir = {
+  selectedKat: 'all', metode: 'Tunai', diskon: 0,
+  load: async function() {
+    var el = document.getElementById('page-kasir');
+    el.innerHTML = '<div class="loading-wrap"><div class="spinner"></div></div>';
+    try {
+      var mR = await api('getMenu',{aktif:true});
+      var kR = await api('getKategori');
+      State.menuList = (mR&&mR.data) ? mR.data : [];
+      State.kategoriList = (kR&&kR.data) ? kR.data : [];
+      Pages.kasir.render();
+    } catch(e) { el.innerHTML='<div class="empty-state"><p>Gagal: '+e.message+'</p></div>'; }
+  },
+  render: function() {
+    var el = document.getElementById('page-kasir');
+    var katTabs = '<button class="kat-tab active" onclick="Pages.kasir.filterKat(\'all\',this)">Semua</button>'
+      + State.kategoriList.map(function(k){ return '<button class="kat-tab" onclick="Pages.kasir.filterKat(\''+k.id+'\',this)">'+k.nama+'</button>'; }).join('');
+    el.innerHTML = '<div class="page-header"><div class="page-title">🛒 Kasir</div><button class="btn btn-outline btn-sm" onclick="Pages.kasir.clearCart()">🗑️ Kosongkan</button></div>'
+      + '<div class="kasir-layout">'
+      + '<div class="kasir-menu-panel">'
+      + '<div class="search-bar" style="margin-bottom:.75rem"><span>🔍</span><input type="text" placeholder="Cari menu..." id="kasir-search" oninput="Pages.kasir.filterMenu()"></div>'
+      + '<div class="kat-tabs" style="margin-bottom:.75rem">'+katTabs+'</div>'
+      + '<div class="menu-grid" id="menu-grid">'+Pages.kasir.renderMenuGrid(State.menuList)+'</div>'
+      + '</div>'
+      + '<div class="card kasir-cart-panel" style="display:flex;flex-direction:column">'
+      + '<div class="card-header"><span class="card-title">🧺 Keranjang</span><span class="badge badge-pink" id="cart-count">0 item</span></div>'
+      + '<div class="kasir-cart-inner" id="cart-items"><div class="empty-cart"><div class="icon">🛒</div><p>Keranjang kosong</p></div></div>'
+      + '<div class="kasir-sticky-footer">'
+      + '<div id="cart-summary"></div>'
+      + '<div style="margin:.75rem 0"><label class="text-sm font-semibold">Diskon (Rp)</label><input type="number" id="diskon-input" value="0" min="0" oninput="Pages.kasir.updateSummary()" style="width:100%;padding:.5rem .75rem;border:2px solid var(--border);border-radius:8px;margin-top:.3rem;background:var(--bg);color:var(--text);outline:none"></div>'
+      + '<div style="margin-bottom:.75rem"><label class="text-sm font-semibold" style="display:block;margin-bottom:.4rem">Metode Pembayaran</label>'
+      + '<div class="metode-tabs"><button class="metode-tab active" onclick="Pages.kasir.setMetode(\'Tunai\',this)">💵 Tunai</button><button class="metode-tab" onclick="Pages.kasir.setMetode(\'QRIS\',this)">📱 QRIS</button><button class="metode-tab" onclick="Pages.kasir.setMetode(\'Transfer\',this)">🏦 Transfer</button></div></div>'
+      + '<input type="text" id="catatan-input" placeholder="Catatan..." style="width:100%;padding:.5rem .75rem;border:2px solid var(--border);border-radius:8px;margin-bottom:.75rem;background:var(--bg);color:var(--text);outline:none">'
+      + '<button class="btn btn-primary btn-full btn-lg" id="bayar-btn" onclick="Pages.kasir.bayar()" disabled>💳 Bayar</button>'
+      + '</div></div></div>';
+    Pages.kasir.updateCartUI();
+  },
+  renderMenuGrid: function(items) {
+    if (!items||!items.length) return '<div class="empty-state" style="grid-column:1/-1"><div class="icon">🍽️</div><p>Tidak ada menu</p></div>';
+    return items.map(function(m){
+      return '<div class="menu-card '+(m.stok<=0?'out-of-stock':'')+'" onclick="Pages.kasir.addToCart(\''+m.id+'\')"><div class="menu-card-img">'+(m.foto?'<img src="'+m.foto+'" style="width:100%;height:100%;object-fit:cover">':'🍽️')+'</div><div class="menu-card-body"><div class="menu-card-name">'+m.nama+'</div><div class="menu-card-price">'+fmt.currency(m.hargaJual)+'</div><div class="menu-card-stok">'+(m.stok<=0?'❌ Habis':'Stok: '+m.stok+' '+m.satuan)+'</div></div></div>';
+    }).join('');
+  },
+  filterKat: function(kat,btn) {
+    Pages.kasir.selectedKat=kat;
+    document.querySelectorAll('.kat-tab').forEach(function(t){ t.classList.remove('active'); });
+    btn.classList.add('active');
+    Pages.kasir.filterMenu();
+  },
+  filterMenu: function() {
+    var q=(document.getElementById('kasir-search')?document.getElementById('kasir-search').value:'').toLowerCase();
+    var items=State.menuList;
+    if (Pages.kasir.selectedKat!=='all') items=items.filter(function(m){ return m.idKategori===Pages.kasir.selectedKat; });
+    if (q) items=items.filter(function(m){ return m.nama.toLowerCase().indexOf(q)>=0; });
+    var grid=document.getElementById('menu-grid');
+    if (grid) grid.innerHTML=Pages.kasir.renderMenuGrid(items);
+  },
+  addToCart: function(id) {
+    var menu=State.menuList.find(function(m){ return m.id===id; });
+    if (!menu) return;
+    var ex=State.cart.find(function(c){ return c.id===id; });
+    if (ex) { if(ex.jumlah>=menu.stok){Toast.warning('Stok tidak cukup');return;} ex.jumlah++; }
+    else State.cart.push({id:menu.id,nama:menu.nama,harga:menu.hargaJual,jumlah:1,stok:menu.stok});
+    Pages.kasir.updateCartUI();
+    Toast.success(menu.nama+' ditambahkan');
+  },
+  changeQty: function(id,delta) {
+    var item=State.cart.find(function(c){ return c.id===id; });
+    if (!item) return;
+    item.jumlah+=delta;
+    if (item.jumlah<=0) { Pages.kasir.removeItem(id); return; }
+    if (item.jumlah>item.stok) { item.jumlah=item.stok; Toast.warning('Stok tidak cukup'); }
+    Pages.kasir.updateCartUI();
+  },
+  removeItem: function(id){ State.cart=State.cart.filter(function(c){ return c.id!==id; }); Pages.kasir.updateCartUI(); },
+  clearCart: function(){ State.cart=[]; Pages.kasir.updateCartUI(); },
+  setMetode: function(m,btn){
+    Pages.kasir.metode=m;
+    document.querySelectorAll('.metode-tab').forEach(function(t){ t.classList.remove('active'); });
+    btn.classList.add('active');
+  },
+  updateCartUI: function() {
+    var countEl=document.getElementById('cart-count');
+    var itemsEl=document.getElementById('cart-items');
+    var bayarBtn=document.getElementById('bayar-btn');
+    if (!itemsEl) return;
+    var total=State.cart.reduce(function(s,c){ return s+c.jumlah; },0);
+    if (countEl) countEl.textContent=total+' item';
+    if (bayarBtn) bayarBtn.disabled=State.cart.length===0;
+    if (!State.cart.length) {
+      itemsEl.innerHTML='<div class="empty-cart"><div class="icon">🛒</div><p>Keranjang kosong</p></div>';
+    } else {
+      itemsEl.innerHTML=State.cart.map(function(c){
+        return '<div class="cart-item"><div class="cart-item-info"><div class="cart-item-name">'+c.nama+'</div><div class="cart-item-price">'+fmt.currency(c.harga)+' × '+c.jumlah+' = '+fmt.currency(c.harga*c.jumlah)+'</div></div>'
+          +'<div class="qty-control"><button class="qty-btn" onclick="Pages.kasir.changeQty(\''+c.id+'\',-1)">−</button><span class="qty-num">'+c.jumlah+'</span><button class="qty-btn" onclick="Pages.kasir.changeQty(\''+c.id+'\',1)">+</button></div>'
+          +'<button class="cart-delete" onclick="Pages.kasir.removeItem(\''+c.id+'\')">🗑️</button></div>';
+      }).join('');
+    }
+    Pages.kasir.updateSummary();
+  },
+  updateSummary: function() {
+    var el=document.getElementById('cart-summary');
+    if (!el) return;
+    var subtotal=State.cart.reduce(function(s,c){ return s+c.harga*c.jumlah; },0);
+    var diskonEl=document.getElementById('diskon-input');
+    Pages.kasir.diskon=parseFloat(diskonEl?diskonEl.value:0)||0;
+    var total=Math.max(0,subtotal-Pages.kasir.diskon);
+    el.innerHTML='<div class="cart-total-row"><span>Subtotal</span><span>'+fmt.currency(subtotal)+'</span></div>'
+      +(Pages.kasir.diskon>0?'<div class="cart-total-row"><span>Diskon</span><span style="color:var(--success)">-'+fmt.currency(Pages.kasir.diskon)+'</span></div>':'')
+      +'<div class="cart-total-row total"><span>TOTAL</span><span>'+fmt.currency(total)+'</span></div>';
+  },
+  bayar: async function() {
+    if (!State.cart.length) return;
+    var diskonEl=document.getElementById('diskon-input');
+    Pages.kasir.diskon=parseFloat(diskonEl?diskonEl.value:0)||0;
+    var catatanEl=document.getElementById('catatan-input');
+    var catatan=catatanEl?catatanEl.value:'';
+    var itemsSnap=State.cart.slice();
+    var btn=document.getElementById('bayar-btn');
+    btn.disabled=true; btn.innerHTML='⏳ Memproses...';
+    try {
+      var r=await api('saveTransaksi',{items:State.cart,diskon:Pages.kasir.diskon,metodePembayaran:Pages.kasir.metode,catatan:catatan});
+      if (r&&r.success) {
+        Toast.success('Transaksi berhasil!');
+        Pages.kasir.showStruk(r.data,itemsSnap);
+        var mR=await api('getMenu',{aktif:true});
+        State.menuList=(mR&&mR.data)?mR.data:[];
+        State.cart=[];
+        Pages.kasir.updateCartUI();
+        Pages.kasir.filterMenu();
+      } else { Toast.error(r?r.message:'Gagal menyimpan'); }
+    } catch(e) { Toast.error('Gagal: '+e.message); }
+    btn.disabled=false; btn.innerHTML='💳 Bayar';
+  },
+  showStruk: function(trx,items) {
+    var subtotal=items.reduce(function(s,c){ return s+c.harga*c.jumlah; },0);
+    var rows=items.map(function(c){ return '<div class="struk-row"><span>'+c.nama+'</span></div><div class="struk-row" style="color:#666"><span>  '+c.jumlah+'x '+fmt.currency(c.harga)+'</span><span>'+fmt.currency(c.harga*c.jumlah)+'</span></div>'; }).join('');
+    Modal.show('🧾 Struk',
+      '<div class="struk"><div class="struk-title">🛒 KASIR WARUNG</div>'
+      +'<div style="text-align:center;font-size:.75rem;color:#666;margin:.25rem 0">'+trx.nomorInvoice+'</div>'
+      +'<div style="text-align:center;font-size:.75rem;color:#666">'+fmt.dateTime(new Date())+'</div>'
+      +'<hr class="struk-divider">'+rows+'<hr class="struk-divider">'
+      +'<div class="struk-row"><span>Subtotal</span><span>'+fmt.currency(subtotal)+'</span></div>'
+      +(Pages.kasir.diskon>0?'<div class="struk-row"><span>Diskon</span><span>-'+fmt.currency(Pages.kasir.diskon)+'</span></div>':'')
+      +'<div class="struk-row struk-total"><span>TOTAL</span><span>'+fmt.currency(trx.total)+'</span></div>'
+      +'<div class="struk-row"><span>Metode</span><span>'+Pages.kasir.metode+'</span></div>'
+      +'<hr class="struk-divider"><div style="text-align:center;font-size:.75rem">Terima kasih! 🙏</div></div>',
+      '<button class="btn btn-outline" onclick="window.print()">🖨️ Cetak</button><button class="btn btn-primary" onclick="Modal.close()">✅ Selesai</button>'
+    );
+  }
+};
+
+Pages.transaksi = {
+  page:1, limit:15, total:0,
+  load: async function(){ Pages.transaksi.page=1; await Pages.transaksi.fetchAndRender(); },
+  fetchAndRender: async function() {
+    document.getElementById('page-transaksi').innerHTML='<div class="page-header"><div class="page-title">📋 Riwayat Transaksi</div><div class="flex gap-2"><input type="date" id="trx-from" style="padding:.5rem;border:2px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text)"><input type="date" id="trx-to" style="padding:.5rem;border:2px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text)"><button class="btn btn-outline btn-sm" onclick="Pages.transaksi.filter()">🔍</button></div></div><div class="card"><div id="trx-table-wrap"><div class="loading-wrap"><div class="spinner"></div></div></div></div>';
+    await Pages.transaksi.loadData();
+  },
+  loadData: async function() {
+    try {
+      var fromEl=document.getElementById('trx-from');
+      var toEl=document.getElementById('trx-to');
+      var r=await api('getTransaksi',{tanggalMulai:fromEl?fromEl.value:'',tanggalSelesai:toEl?toEl.value:'',page:Pages.transaksi.page,limit:Pages.transaksi.limit});
+      if (!r||!r.success) { Toast.error(r?r.message:'Gagal'); return; }
+      Pages.transaksi.total=r.data.total;
+      var rows=r.data.rows;
+      var wrap=document.getElementById('trx-table-wrap');
+      if (!wrap) return;
+      if (!rows.length) { wrap.innerHTML='<div class="empty-state"><div class="icon">📋</div><h3>Tidak ada transaksi</h3></div>'; return; }
+      var tbody=rows.map(function(t){
+        return '<tr><td><span class="chip">'+t.nomorInvoice+'</span></td><td>'+fmt.dateTime(t.tanggal)+'</td><td>'+t.namaKasir+'</td><td><strong>'+fmt.currency(t.total)+'</strong></td>'
+          +'<td><span class="badge '+(t.metodePembayaran==='Tunai'?'badge-green':t.metodePembayaran==='QRIS'?'badge-blue':'badge-pink')+'">'+t.metodePembayaran+'</span></td>'
+          +'<td class="flex gap-2"><button class="btn btn-outline btn-sm" onclick="Pages.transaksi.detail(\''+t.id+'\')">📄</button>'
+          +'<button class="btn btn-sm" style="background:#fee2e2;color:#dc2626" onclick="Pages.transaksi.hapus(\''+t.id+'\')">🗑️</button></td></tr>';
+      }).join('');
+      wrap.innerHTML='<div class="table-wrap"><table><thead><tr><th>Invoice</th><th>Tanggal</th><th>Kasir</th><th>Total</th><th>Metode</th><th>Aksi</th></tr></thead><tbody>'+tbody+'</tbody></table></div>'+Pages.transaksi.renderPagination();
+    } catch(e) { Toast.error('Gagal: '+e); }
+  },
+  renderPagination: function() {
+    var tp=Math.ceil(Pages.transaksi.total/Pages.transaksi.limit);
+    if (tp<=1) return '';
+    var h='<div class="pagination"><button class="page-btn" onclick="Pages.transaksi.goPage('+(Pages.transaksi.page-1)+')" '+(Pages.transaksi.page<=1?'disabled':'')+'>‹</button>';
+    for(var i=1;i<=tp;i++){
+      if(i===1||i===tp||Math.abs(i-Pages.transaksi.page)<=1) h+='<button class="page-btn '+(i===Pages.transaksi.page?'active':'')+'" onclick="Pages.transaksi.goPage('+i+')">'+i+'</button>';
+      else if(Math.abs(i-Pages.transaksi.page)===2) h+='<span class="page-btn">…</span>';
+    }
+    return h+'<button class="page-btn" onclick="Pages.transaksi.goPage('+(Pages.transaksi.page+1)+')" '+(Pages.transaksi.page>=tp?'disabled':'')+'>›</button></div>';
+  },
+  goPage: async function(p){ var tp=Math.ceil(Pages.transaksi.total/Pages.transaksi.limit); if(p<1||p>tp)return; Pages.transaksi.page=p; await Pages.transaksi.loadData(); },
+  filter: function(){ Pages.transaksi.page=1; Pages.transaksi.loadData(); },
+  detail: async function(id) {
+    var r=await api('getTransaksiById',{id:id});
+    if (!r||!r.success){Toast.error(r?r.message:'Gagal');return;}
+    var t=r.data;
+    var itemRows=(t.items||[]).map(function(i){ return '<tr><td style="padding:.5rem">'+i.namaMenu+'</td><td style="padding:.5rem;text-align:center">'+i.jumlah+'</td><td style="padding:.5rem;text-align:right">'+fmt.currency(i.subtotal)+'</td></tr>'; }).join('');
+    Modal.show('📄 Detail - '+t.nomorInvoice,
+      '<div style="margin-bottom:1rem"><div class="flex justify-between text-sm" style="padding:.3rem 0"><span class="text-muted">Invoice</span><strong>'+t.nomorInvoice+'</strong></div><div class="flex justify-between text-sm" style="padding:.3rem 0"><span class="text-muted">Tanggal</span><span>'+fmt.dateTime(t.tanggal)+'</span></div><div class="flex justify-between text-sm" style="padding:.3rem 0"><span class="text-muted">Kasir</span><span>'+t.namaKasir+'</span></div><div class="flex justify-between text-sm" style="padding:.3rem 0"><span class="text-muted">Metode</span><span>'+t.metodePembayaran+'</span></div></div>'
+      +'<table style="width:100%;border-collapse:collapse;font-size:.85rem"><thead><tr style="background:var(--pink-50)"><th style="padding:.5rem;text-align:left">Menu</th><th style="padding:.5rem;text-align:center">Qty</th><th style="padding:.5rem;text-align:right">Subtotal</th></tr></thead><tbody>'+itemRows+'</tbody></table>'
+      +'<hr class="divider">'+(t.diskon>0?'<div class="flex justify-between"><span>Diskon</span><span style="color:var(--success)">-'+fmt.currency(t.diskon)+'</span></div>':'')
+      +'<div class="flex justify-between font-bold" style="font-size:1.1rem;color:var(--primary)"><span>TOTAL</span><span>'+fmt.currency(t.total)+'</span></div>',
+      '<button class="btn btn-primary" onclick="Modal.close()">Tutup</button>'
+    );
+  },
+  hapus: async function(id){
+    var ok=await Confirm.show('Hapus transaksi ini?','Hapus Transaksi');
+    if(!ok)return;
+    var r=await api('deleteTransaksi',{id:id});
+    if(r&&r.success){Toast.success('Dihapus');await Pages.transaksi.loadData();}else Toast.error(r?r.message:'Gagal');
+  }
+};
+</script>
