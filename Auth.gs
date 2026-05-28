@@ -11,7 +11,7 @@ const Auth = (() => {
     const { username, password } = params;
     
     if (!username || !password) {
-      return Utilities.response(false, 'Username dan password wajib diisi');
+      return Utils.response(false, 'Username dan password wajib diisi');
     }
     
     const sheet = Database.getSheet('User');
@@ -25,7 +25,7 @@ const Auth = (() => {
       
       if (uname === username.toLowerCase() && pwd === password) {
         if (status !== 'aktif') {
-          return Utilities.response(false, 'Akun tidak aktif. Hubungi Admin.');
+          return Utils.response(false, 'Akun tidak aktif. Hubungi Admin.');
         }
         
         const user = {
@@ -38,11 +38,11 @@ const Auth = (() => {
         const token = generateToken(user.id);
         saveSession(token, user);
         
-        return Utilities.response(true, 'Login berhasil', { token, user });
+        return Utils.response(true, 'Login berhasil', { token, user });
       }
     }
     
-    return Utilities.response(false, 'Username atau password salah');
+    return Utils.response(false, 'Username atau password salah');
   }
 
   function logout(params) {
@@ -51,25 +51,25 @@ const Auth = (() => {
       const cache = CacheService.getScriptCache();
       cache.remove(SESSION_CACHE_PREFIX + token);
     }
-    return Utilities.response(true, 'Logout berhasil');
+    return Utils.response(true, 'Logout berhasil');
   }
 
   function checkSession(params) {
     const { token } = params;
-    if (!token) return Utilities.response(false, 'Tidak ada sesi');
+    if (!token) return Utils.response(false, 'Tidak ada sesi');
     
     const user = getSession(token);
-    if (!user) return Utilities.response(false, 'Sesi tidak valid atau sudah habis');
+    if (!user) return Utils.response(false, 'Sesi tidak valid atau sudah habis');
     
     // Perpanjang sesi
     saveSession(token, user);
-    return Utilities.response(true, 'Sesi valid', { user });
+    return Utils.response(true, 'Sesi valid', { user });
   }
 
   function changePassword(params) {
     const { token, oldPassword, newPassword } = params;
     const user = getSession(token);
-    if (!user) return Utilities.response(false, 'Tidak terautentikasi');
+    if (!user) return Utils.response(false, 'Tidak terautentikasi');
     
     const sheet = Database.getSheet('User');
     const data = sheet.getDataRange().getValues();
@@ -77,13 +77,13 @@ const Auth = (() => {
     for (let i = 1; i < data.length; i++) {
       if (String(data[i][0]) === String(user.id)) {
         if (String(data[i][3]) !== oldPassword) {
-          return Utilities.response(false, 'Password lama salah');
+          return Utils.response(false, 'Password lama salah');
         }
         sheet.getRange(i + 1, 4).setValue(newPassword);
-        return Utilities.response(true, 'Password berhasil diubah');
+        return Utils.response(true, 'Password berhasil diubah');
       }
     }
-    return Utilities.response(false, 'User tidak ditemukan');
+    return Utils.response(false, 'User tidak ditemukan');
   }
 
   function generateToken(userId) {
