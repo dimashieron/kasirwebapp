@@ -47,31 +47,31 @@ const MenuManager = (() => {
         menus = menus.filter(m => m.statusAktif === 'aktif');
       }
       
-      return Utilities.response(true, 'OK', menus);
+      return Utils.response(true, 'OK', menus);
     } catch (e) {
-      return Utilities.response(false, e.message);
+      return Utils.response(false, e.message);
     }
   }
 
   function getById(params) {
     try {
       const found = Database.findRowById('Menu', params.id);
-      if (!found) return Utilities.response(false, 'Menu tidak ditemukan');
+      if (!found) return Utils.response(false, 'Menu tidak ditemukan');
       
       const menu = rowToMenu(found.data);
-      return Utilities.response(true, 'OK', menu);
+      return Utils.response(true, 'OK', menu);
     } catch (e) {
-      return Utilities.response(false, e.message);
+      return Utils.response(false, e.message);
     }
   }
 
   function add(params) {
     try {
-      const user = Auth.validateSession(params.token, null);
-      if (user.role !== 'admin') return Utilities.response(false, 'Akses ditolak');
+      
+      if (user.role !== 'admin') return Utils.response(false, 'Akses ditolak');
       
       const { nama, idKategori, hargaJual, hargaModal, stok, satuan, foto, statusAktif } = params;
-      if (!nama || !hargaJual) return Utilities.response(false, 'Nama dan harga wajib diisi');
+      if (!nama || !hargaJual) return Utils.response(false, 'Nama dan harga wajib diisi');
       
       const id = Database.generateId('MNU');
       const row = [
@@ -86,19 +86,19 @@ const MenuManager = (() => {
       ];
       
       Database.appendRow('Menu', row);
-      return Utilities.response(true, 'Menu berhasil ditambahkan', { id });
+      return Utils.response(true, 'Menu berhasil ditambahkan', { id });
     } catch (e) {
-      return Utilities.response(false, e.message);
+      return Utils.response(false, e.message);
     }
   }
 
   function update(params) {
     try {
-      const user = Auth.validateSession(params.token, null);
-      if (user.role !== 'admin') return Utilities.response(false, 'Akses ditolak');
+      
+      if (user.role !== 'admin') return Utils.response(false, 'Akses ditolak');
       
       const found = Database.findRowById('Menu', params.id);
-      if (!found) return Utilities.response(false, 'Menu tidak ditemukan');
+      if (!found) return Utils.response(false, 'Menu tidak ditemukan');
       
       const row = [
         params.id,
@@ -114,24 +114,24 @@ const MenuManager = (() => {
       ];
       
       Database.updateRow('Menu', found.rowIndex, row);
-      return Utilities.response(true, 'Menu berhasil diupdate');
+      return Utils.response(true, 'Menu berhasil diupdate');
     } catch (e) {
-      return Utilities.response(false, e.message);
+      return Utils.response(false, e.message);
     }
   }
 
   function remove(params) {
     try {
-      const user = Auth.validateSession(params.token, null);
-      if (user.role !== 'admin') return Utilities.response(false, 'Akses ditolak');
+      
+      if (user.role !== 'admin') return Utils.response(false, 'Akses ditolak');
       
       const found = Database.findRowById('Menu', params.id);
-      if (!found) return Utilities.response(false, 'Menu tidak ditemukan');
+      if (!found) return Utils.response(false, 'Menu tidak ditemukan');
       
       Database.deleteRow('Menu', found.rowIndex);
-      return Utilities.response(true, 'Menu berhasil dihapus');
+      return Utils.response(true, 'Menu berhasil dihapus');
     } catch (e) {
-      return Utilities.response(false, e.message);
+      return Utils.response(false, e.message);
     }
   }
 
@@ -152,39 +152,39 @@ const MenuManager = (() => {
     try {
       const rows = Database.getAllRows('Kategori');
       const kategori = rows.map(r => ({ id: r[0], nama: r[1] }));
-      return Utilities.response(true, 'OK', kategori);
+      return Utils.response(true, 'OK', kategori);
     } catch (e) {
-      return Utilities.response(false, e.message);
+      return Utils.response(false, e.message);
     }
   }
 
   function addKategori(params) {
     try {
-      const user = Auth.validateSession(params.token, null);
-      if (user.role !== 'admin') return Utilities.response(false, 'Akses ditolak');
       
-      if (!params.nama) return Utilities.response(false, 'Nama kategori wajib diisi');
+      if (user.role !== 'admin') return Utils.response(false, 'Akses ditolak');
+      
+      if (!params.nama) return Utils.response(false, 'Nama kategori wajib diisi');
       
       const id = Database.generateId('KAT');
       Database.appendRow('Kategori', [id, params.nama]);
-      return Utilities.response(true, 'Kategori ditambahkan', { id });
+      return Utils.response(true, 'Kategori ditambahkan', { id });
     } catch (e) {
-      return Utilities.response(false, e.message);
+      return Utils.response(false, e.message);
     }
   }
 
   function deleteKategori(params) {
     try {
-      const user = Auth.validateSession(params.token, null);
-      if (user.role !== 'admin') return Utilities.response(false, 'Akses ditolak');
+      
+      if (user.role !== 'admin') return Utils.response(false, 'Akses ditolak');
       
       const found = Database.findRowById('Kategori', params.id);
-      if (!found) return Utilities.response(false, 'Kategori tidak ditemukan');
+      if (!found) return Utils.response(false, 'Kategori tidak ditemukan');
       
       Database.deleteRow('Kategori', found.rowIndex);
-      return Utilities.response(true, 'Kategori dihapus');
+      return Utils.response(true, 'Kategori dihapus');
     } catch (e) {
-      return Utilities.response(false, e.message);
+      return Utils.response(false, e.message);
     }
   }
 
