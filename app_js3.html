@@ -1,0 +1,263 @@
+<script>
+Pages.menu = {
+  menus:[],
+  load: async function() {
+    document.getElementById('page-menu').innerHTML='<div class="page-header"><div class="page-title">🍽️ Menu</div><button class="btn btn-primary" onclick="Pages.menu.formAdd()">➕ Tambah</button></div><div class="filter-bar"><div class="search-bar" style="flex:1"><span>🔍</span><input type="text" placeholder="Cari..." id="menu-search" oninput="Pages.menu.applyFilter()"></div><select id="menu-kat-filter" onchange="Pages.menu.applyFilter()" style="padding:.6rem 1rem;border:2px solid var(--border);border-radius:10px;background:var(--bg);color:var(--text)"><option value="">Semua</option></select></div><div class="card"><div id="menu-list"><div class="loading-wrap"><div class="spinner"></div></div></div></div>';
+    await Pages.menu.loadData();
+  },
+  loadData: async function() {
+    var mR=await api('getMenu'); var kR=await api('getKategori');
+    Pages.menu.menus=(mR&&mR.data)?mR.data:[];
+    State.kategoriList=(kR&&kR.data)?kR.data:[];
+    var sel=document.getElementById('menu-kat-filter');
+    if(sel) sel.innerHTML='<option value="">Semua</option>'+State.kategoriList.map(function(k){ return '<option value="'+k.id+'">'+k.nama+'</option>'; }).join('');
+    Pages.menu.applyFilter();
+  },
+  applyFilter: function() {
+    var q=(document.getElementById('menu-search')?document.getElementById('menu-search').value:'').toLowerCase();
+    var kat=document.getElementById('menu-kat-filter')?document.getElementById('menu-kat-filter').value:'';
+    var items=Pages.menu.menus;
+    if(q) items=items.filter(function(m){ return m.nama.toLowerCase().indexOf(q)>=0; });
+    if(kat) items=items.filter(function(m){ return m.idKategori===kat; });
+    var el=document.getElementById('menu-list');
+    if(!el) return;
+    if(!items.length){ el.innerHTML='<div class="empty-state"><div class="icon">🍽️</div><h3>Tidak ada menu</h3><button class="btn btn-primary" style="margin-top:1rem" onclick="Pages.menu.formAdd()">Tambah Menu</button></div>'; return; }
+    var tbody=items.map(function(m){
+      return '<tr><td><strong>'+m.nama+'</strong></td><td><span class="badge badge-pink">'+(m.namaKategori||'-')+'</span></td><td>'+fmt.currency(m.hargaJual)+'</td>'
+        +'<td><span class="badge '+(m.stok<=5?'badge-red':'badge-green')+'">'+m.stok+' '+m.satuan+'</span></td>'
+        +'<td><span class="badge '+(m.statusAktif==='aktif'?'badge-green':'badge-gray')+'">'+m.statusAktif+'</span></td>'
+        +'<td class="flex gap-2"><button class="btn btn-outline btn-sm" onclick="Pages.menu.formEdit(\''+m.id+'\')">✏️</button><button class="btn btn-sm" style="background:#fee2e2;color:#dc2626" onclick="Pages.menu.hapus(\''+m.id+'\',\''+m.nama+'\')">🗑️</button></td></tr>';
+    }).join('');
+    el.innerHTML='<div class="table-wrap"><table><thead><tr><th>Nama</th><th>Kategori</th><th>Harga Jual</th><th>Stok</th><th>Status</th><th>Aksi</th></tr></thead><tbody>'+tbody+'</tbody></table></div>';
+  },
+  formAdd: function(){ Pages.menu.showForm(null); },
+  formEdit: function(id){ Pages.menu.showForm(Pages.menu.menus.find(function(m){ return m.id===id; })); },
+  showForm: function(menu) {
+    var katOpts=State.kategoriList.map(function(k){ return '<option value="'+k.id+'"'+(menu&&menu.idKategori===k.id?' selected':'')+'>'+k.nama+'</option>'; }).join('');
+    Modal.show(menu?'✏️ Edit Menu':'➕ Tambah Menu',
+      '<div class="form-row"><div class="form-group"><label>Nama *</label><input type="text" id="f-nama" value="'+(menu?menu.nama:'')+'"></div><div class="form-group"><label>Kategori</label><select id="f-kat">'+katOpts+'</select></div></div>'
+      +'<div class="form-row"><div class="form-group"><label>Harga Jual *</label><input type="number" id="f-jual" value="'+(menu?menu.hargaJual:'')+'"></div><div class="form-group"><label>Harga Modal</label><input type="number" id="f-modal" value="'+(menu?menu.hargaModal:'')+'"></div></div>'
+      +'<div class="form-row"><div class="form-group"><label>Stok</label><input type="number" id="f-stok" value="'+(menu?menu.stok:0)+'"></div><div class="form-group"><label>Satuan</label><input type="text" id="f-satuan" value="'+(menu?menu.satuan:'porsi')+'"></div></div>'
+      +'<div class="form-group"><label>URL Foto</label><input type="url" id="f-foto" value="'+(menu?menu.foto:'')+'"></div>'
+      +'<div class="form-group"><label>Status</label><select id="f-status"><option value="aktif"'+(!menu||menu.statusAktif==='aktif'?' selected':'')+'>Aktif</option><option value="nonaktif"'+(menu&&menu.statusAktif==='nonaktif'?' selected':'')+'>Nonaktif</option></select></div>',
+      '<button class="btn btn-outline" onclick="Modal.close()">Batal</button><button class="btn btn-primary" onclick="Pages.menu.save(\''+(menu?menu.id:'')+'\')">💾 Simpan</button>'
+    );
+  },
+  save: async function(id) {
+    var params={nama:document.getElementById('f-nama').value,idKategori:document.getElementById('f-kat').value,hargaJual:document.getElementById('f-jual').value,hargaModal:document.getElementById('f-modal').value,stok:document.getElementById('f-stok').value,satuan:document.getElementById('f-satuan').value,foto:document.getElementById('f-foto').value,statusAktif:document.getElementById('f-status').value};
+    if(!params.nama||!params.hargaJual){Toast.error('Nama dan harga wajib');return;}
+    var r=id?await api('updateMenu',Object.assign({id:id},params)):await api('addMenu',params);
+    if(r&&r.success){Toast.success('Tersimpan');Modal.close();await Pages.menu.loadData();}else Toast.error(r?r.message:'Gagal');
+  },
+  hapus: async function(id,nama) {
+    var ok=await Confirm.show('Hapus "'+nama+'"?','Hapus Menu');
+    if(!ok)return;
+    var r=await api('deleteMenu',{id:id});
+    if(r&&r.success){Toast.success('Dihapus');await Pages.menu.loadData();}else Toast.error(r?r.message:'Gagal');
+  }
+};
+
+Pages.bahan = {
+  items:[],
+  load: async function() {
+    document.getElementById('page-bahan').innerHTML='<div class="page-header"><div class="page-title">📦 Bahan Baku</div><button class="btn btn-primary" onclick="Pages.bahan.formAdd()">➕ Tambah</button></div><div class="card"><div id="bahan-list"><div class="loading-wrap"><div class="spinner"></div></div></div></div>';
+    var r=await api('getBahanBaku');
+    Pages.bahan.items=(r&&r.data)?r.data:[];
+    var el=document.getElementById('bahan-list');
+    if(!Pages.bahan.items.length){el.innerHTML='<div class="empty-state"><div class="icon">📦</div><h3>Belum ada bahan</h3></div>';return;}
+    var tbody=Pages.bahan.items.map(function(b){
+      return '<tr><td><strong>'+b.nama+'</strong></td><td>'+b.stok+'</td><td>'+b.satuan+'</td><td>'+fmt.currency(b.hargaBeli)+'</td><td>'+b.minimumStok+'</td>'
+        +'<td><span class="badge '+(b.statusKritis?'badge-red':'badge-green')+'">'+(b.statusKritis?'🚨 Kritis':'✅ Aman')+'</span></td>'
+        +'<td class="flex gap-2"><button class="btn btn-outline btn-sm" onclick="Pages.bahan.formEdit(\''+b.id+'\')">✏️</button><button class="btn btn-sm" style="background:#fee2e2;color:#dc2626" onclick="Pages.bahan.hapus(\''+b.id+'\',\''+b.nama+'\')">🗑️</button></td></tr>';
+    }).join('');
+    el.innerHTML='<div class="table-wrap"><table><thead><tr><th>Nama</th><th>Stok</th><th>Satuan</th><th>Harga Beli</th><th>Min Stok</th><th>Status</th><th>Aksi</th></tr></thead><tbody>'+tbody+'</tbody></table></div>';
+  },
+  formAdd: function(){ Pages.bahan.showForm(null); },
+  formEdit: function(id){ Pages.bahan.showForm(Pages.bahan.items.find(function(b){ return b.id===id; })); },
+  showForm: function(item) {
+    Modal.show(item?'✏️ Edit Bahan':'➕ Tambah Bahan',
+      '<div class="form-group"><label>Nama *</label><input type="text" id="b-nama" value="'+(item?item.nama:'')+'"></div>'
+      +'<div class="form-row"><div class="form-group"><label>Stok</label><input type="number" id="b-stok" value="'+(item?item.stok:0)+'"></div><div class="form-group"><label>Satuan</label><input type="text" id="b-satuan" value="'+(item?item.satuan:'pcs')+'"></div></div>'
+      +'<div class="form-row"><div class="form-group"><label>Harga Beli</label><input type="number" id="b-harga" value="'+(item?item.hargaBeli:0)+'"></div><div class="form-group"><label>Min Stok</label><input type="number" id="b-min" value="'+(item?item.minimumStok:0)+'"></div></div>'
+      +'<div class="form-group"><label>Supplier</label><input type="text" id="b-sup" value="'+(item?item.supplier:'')+'"></div>',
+      '<button class="btn btn-outline" onclick="Modal.close()">Batal</button><button class="btn btn-primary" onclick="Pages.bahan.save(\''+(item?item.id:'')+'\')">💾 Simpan</button>'
+    );
+  },
+  save: async function(id) {
+    var params={nama:document.getElementById('b-nama').value,stok:document.getElementById('b-stok').value,satuan:document.getElementById('b-satuan').value,hargaBeli:document.getElementById('b-harga').value,minimumStok:document.getElementById('b-min').value,supplier:document.getElementById('b-sup').value};
+    if(!params.nama){Toast.error('Nama wajib');return;}
+    var r=id?await api('updateBahanBaku',Object.assign({id:id},params)):await api('addBahanBaku',params);
+    if(r&&r.success){Toast.success('Tersimpan');Modal.close();await Pages.bahan.load();}else Toast.error(r?r.message:'Gagal');
+  },
+  hapus: async function(id,nama) {
+    var ok=await Confirm.show('Hapus "'+nama+'"?','Hapus');
+    if(!ok)return;
+    var r=await api('deleteBahanBaku',{id:id});
+    if(r&&r.success){Toast.success('Dihapus');await Pages.bahan.load();}else Toast.error(r?r.message:'Gagal');
+  }
+};
+
+Pages.resep = {
+  items:[],
+  load: async function() {
+    document.getElementById('page-resep').innerHTML='<div class="page-header"><div class="page-title">📝 Resep</div><button class="btn btn-primary" onclick="Pages.resep.formAdd()">➕ Tambah</button></div><div class="card"><div id="resep-list"><div class="loading-wrap"><div class="spinner"></div></div></div></div>';
+    var r=await api('getResep');
+    Pages.resep.items=(r&&r.data)?r.data:[];
+    var el=document.getElementById('resep-list');
+    if(!Pages.resep.items.length){el.innerHTML='<div class="empty-state"><div class="icon">📝</div><h3>Belum ada resep</h3></div>';return;}
+    var tbody=Pages.resep.items.map(function(r){ return '<tr><td>'+r.namaMenu+'</td><td>'+r.namaBahan+'</td><td>'+r.jumlahPemakaian+' '+r.satuanBahan+'</td><td><button class="btn btn-sm" style="background:#fee2e2;color:#dc2626" onclick="Pages.resep.hapus(\''+r.id+'\')">🗑️</button></td></tr>'; }).join('');
+    el.innerHTML='<div class="table-wrap"><table><thead><tr><th>Menu</th><th>Bahan</th><th>Jumlah</th><th>Aksi</th></tr></thead><tbody>'+tbody+'</tbody></table></div>';
+  },
+  formAdd: async function() {
+    var mR=await api('getMenu',{aktif:true}); var bR=await api('getBahanBaku');
+    Modal.show('➕ Tambah Resep',
+      '<div class="form-group"><label>Menu</label><select id="r-menu">'+((mR&&mR.data)||[]).map(function(m){ return '<option value="'+m.id+'">'+m.nama+'</option>'; }).join('')+'</select></div>'
+      +'<div class="form-group"><label>Bahan</label><select id="r-bahan">'+((bR&&bR.data)||[]).map(function(b){ return '<option value="'+b.id+'">'+b.nama+' ('+b.satuan+')</option>'; }).join('')+'</select></div>'
+      +'<div class="form-group"><label>Jumlah per Porsi</label><input type="number" id="r-jml" step="0.01" min="0" value="1"></div>',
+      '<button class="btn btn-outline" onclick="Modal.close()">Batal</button><button class="btn btn-primary" onclick="Pages.resep.save()">💾 Simpan</button>'
+    );
+  },
+  save: async function() {
+    var r=await api('saveResep',{idMenu:document.getElementById('r-menu').value,idBahan:document.getElementById('r-bahan').value,jumlahPemakaian:document.getElementById('r-jml').value});
+    if(r&&r.success){Toast.success('Disimpan');Modal.close();await Pages.resep.load();}else Toast.error(r?r.message:'Gagal');
+  },
+  hapus: async function(id) {
+    var ok=await Confirm.show('Hapus resep ini?','Hapus');
+    if(!ok)return;
+    var r=await api('deleteResep',{id:id});
+    if(r&&r.success){Toast.success('Dihapus');await Pages.resep.load();}else Toast.error(r?r.message:'Gagal');
+  }
+};
+
+Pages.pengeluaran = {
+  items:[],
+  load: async function() {
+    var today=new Date().toISOString().split('T')[0];
+    document.getElementById('page-pengeluaran').innerHTML='<div class="page-header"><div class="page-title">💸 Pengeluaran</div><button class="btn btn-primary" onclick="Pages.pengeluaran.formAdd()">➕ Tambah</button></div><div class="filter-bar"><input type="date" id="pgl-from" value="'+today+'" style="padding:.6rem;border:2px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text)"><input type="date" id="pgl-to" value="'+today+'" style="padding:.6rem;border:2px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text)"><button class="btn btn-outline" onclick="Pages.pengeluaran.loadData()">🔍 Filter</button></div><div class="card"><div id="pgl-list"><div class="loading-wrap"><div class="spinner"></div></div></div></div>';
+    await Pages.pengeluaran.loadData();
+  },
+  loadData: async function() {
+    var fromEl=document.getElementById('pgl-from'); var toEl=document.getElementById('pgl-to');
+    var r=await api('getPengeluaran',{tanggalMulai:fromEl?fromEl.value:'',tanggalSelesai:toEl?toEl.value:''});
+    Pages.pengeluaran.items=(r&&r.data)?r.data:[];
+    var total=Pages.pengeluaran.items.reduce(function(s,i){ return s+(parseFloat(i.nominal)||0); },0);
+    var el=document.getElementById('pgl-list');
+    if(!Pages.pengeluaran.items.length){el.innerHTML='<div class="empty-state"><div class="icon">💸</div><h3>Tidak ada pengeluaran</h3></div>';return;}
+    var tbody=Pages.pengeluaran.items.map(function(p){
+      return '<tr><td>'+fmt.date(p.tanggal)+'</td><td><span class="chip">'+p.kategori+'</span></td><td>'+(p.deskripsi||'-')+'</td>'
+        +'<td><strong style="color:var(--danger)">'+fmt.currency(p.nominal)+'</strong></td>'
+        +'<td class="flex gap-2"><button class="btn btn-outline btn-sm" onclick="Pages.pengeluaran.formEdit(\''+p.id+'\')">✏️</button><button class="btn btn-sm" style="background:#fee2e2;color:#dc2626" onclick="Pages.pengeluaran.hapus(\''+p.id+'\')">🗑️</button></td></tr>';
+    }).join('');
+    el.innerHTML='<div class="card-body" style="background:var(--pink-50);border-bottom:1px solid var(--border)"><div class="flex justify-between"><span class="font-semibold">Total</span><span class="font-bold" style="color:var(--danger)">'+fmt.currency(total)+'</span></div></div><div class="table-wrap"><table><thead><tr><th>Tanggal</th><th>Kategori</th><th>Deskripsi</th><th>Nominal</th><th>Aksi</th></tr></thead><tbody>'+tbody+'</tbody></table></div>';
+  },
+  formAdd: function(){ Pages.pengeluaran.showForm(null); },
+  formEdit: function(id){ Pages.pengeluaran.showForm(Pages.pengeluaran.items.find(function(p){ return p.id===id; })); },
+  showForm: function(item) {
+    var today=new Date().toISOString().split('T')[0];
+    var tgl=item&&item.tanggal?new Date(item.tanggal).toISOString().split('T')[0]:today;
+    var katOpts=['Belanja Bahan','Gaji','Listrik & Air','Sewa','Peralatan','Lain-lain'].map(function(k){ return '<option'+(item&&item.kategori===k?' selected':'')+'>'+k+'</option>'; }).join('');
+    Modal.show(item?'✏️ Edit':'➕ Tambah Pengeluaran',
+      '<div class="form-group"><label>Tanggal</label><input type="date" id="p-tgl" value="'+tgl+'"></div>'
+      +'<div class="form-group"><label>Kategori</label><select id="p-kat">'+katOpts+'</select></div>'
+      +'<div class="form-group"><label>Deskripsi</label><input type="text" id="p-desc" value="'+(item?item.deskripsi:'')+'"></div>'
+      +'<div class="form-group"><label>Nominal *</label><input type="number" id="p-nominal" value="'+(item?item.nominal:'')+'"></div>',
+      '<button class="btn btn-outline" onclick="Modal.close()">Batal</button><button class="btn btn-primary" onclick="Pages.pengeluaran.save(\''+(item?item.id:'')+'\')">💾 Simpan</button>'
+    );
+  },
+  save: async function(id) {
+    var params={tanggal:document.getElementById('p-tgl').value,kategori:document.getElementById('p-kat').value,deskripsi:document.getElementById('p-desc').value,nominal:document.getElementById('p-nominal').value};
+    if(!params.nominal){Toast.error('Nominal wajib');return;}
+    var r=id?await api('updatePengeluaran',Object.assign({id:id},params)):await api('addPengeluaran',params);
+    if(r&&r.success){Toast.success('Tersimpan');Modal.close();await Pages.pengeluaran.loadData();}else Toast.error(r?r.message:'Gagal');
+  },
+  hapus: async function(id) {
+    var ok=await Confirm.show('Hapus pengeluaran ini?','Hapus');
+    if(!ok)return;
+    var r=await api('deletePengeluaran',{id:id});
+    if(r&&r.success){Toast.success('Dihapus');await Pages.pengeluaran.loadData();}else Toast.error(r?r.message:'Gagal');
+  }
+};
+
+Pages.supplier = {
+  items:[],
+  load: async function() {
+    document.getElementById('page-supplier').innerHTML='<div class="page-header"><div class="page-title">🏪 Supplier</div><button class="btn btn-primary" onclick="Pages.supplier.formAdd()">➕ Tambah</button></div><div class="card"><div id="sup-list"><div class="loading-wrap"><div class="spinner"></div></div></div></div>';
+    var r=await api('getSupplier');
+    Pages.supplier.items=(r&&r.data)?r.data:[];
+    var el=document.getElementById('sup-list');
+    if(!Pages.supplier.items.length){el.innerHTML='<div class="empty-state"><div class="icon">🏪</div><h3>Belum ada supplier</h3></div>';return;}
+    var tbody=Pages.supplier.items.map(function(s){
+      return '<tr><td><strong>'+s.nama+'</strong></td><td>'+(s.nomorHp||'-')+'</td><td>'+(s.alamat||'-')+'</td>'
+        +'<td class="flex gap-2"><button class="btn btn-outline btn-sm" onclick="Pages.supplier.formEdit(\''+s.id+'\')">✏️</button><button class="btn btn-sm" style="background:#fee2e2;color:#dc2626" onclick="Pages.supplier.hapus(\''+s.id+'\',\''+s.nama+'\')">🗑️</button></td></tr>';
+    }).join('');
+    el.innerHTML='<div class="table-wrap"><table><thead><tr><th>Nama</th><th>No. HP</th><th>Alamat</th><th>Aksi</th></tr></thead><tbody>'+tbody+'</tbody></table></div>';
+  },
+  formAdd: function(){ Pages.supplier.showForm(null); },
+  formEdit: function(id){ Pages.supplier.showForm(Pages.supplier.items.find(function(s){ return s.id===id; })); },
+  showForm: function(item) {
+    Modal.show(item?'✏️ Edit Supplier':'➕ Tambah Supplier',
+      '<div class="form-group"><label>Nama *</label><input type="text" id="s-nama" value="'+(item?item.nama:'')+'"></div>'
+      +'<div class="form-group"><label>No. HP</label><input type="tel" id="s-hp" value="'+(item?item.nomorHp:'')+'"></div>'
+      +'<div class="form-group"><label>Alamat</label><textarea id="s-alamat">'+(item?item.alamat:'')+'</textarea></div>'
+      +'<div class="form-group"><label>Catatan</label><input type="text" id="s-cat" value="'+(item?item.catatan:'')+'"></div>',
+      '<button class="btn btn-outline" onclick="Modal.close()">Batal</button><button class="btn btn-primary" onclick="Pages.supplier.save(\''+(item?item.id:'')+'\')">💾 Simpan</button>'
+    );
+  },
+  save: async function(id) {
+    var params={nama:document.getElementById('s-nama').value,nomorHp:document.getElementById('s-hp').value,alamat:document.getElementById('s-alamat').value,catatan:document.getElementById('s-cat').value};
+    if(!params.nama){Toast.error('Nama wajib');return;}
+    var r=id?await api('updateSupplier',Object.assign({id:id},params)):await api('addSupplier',params);
+    if(r&&r.success){Toast.success('Tersimpan');Modal.close();await Pages.supplier.load();}else Toast.error(r?r.message:'Gagal');
+  },
+  hapus: async function(id,nama) {
+    var ok=await Confirm.show('Hapus "'+nama+'"?','Hapus');
+    if(!ok)return;
+    var r=await api('deleteSupplier',{id:id});
+    if(r&&r.success){Toast.success('Dihapus');await Pages.supplier.load();}else Toast.error(r?r.message:'Gagal');
+  }
+};
+
+Pages.laporan = {
+  data:null,
+  load: async function() {
+    document.getElementById('page-laporan').innerHTML='<div class="page-header"><div class="page-title">📈 Laporan</div></div><div class="filter-bar"><select id="lap-periode" onchange="Pages.laporan.onPeriodeChange()" style="padding:.65rem 1rem;border:2px solid var(--border);border-radius:10px;background:var(--bg);color:var(--text);font-weight:600"><option value="harian">Harian</option><option value="mingguan">Mingguan</option><option value="bulanan">Bulanan</option><option value="kustom">Kustom</option></select><div id="lap-date-range" class="hidden flex gap-2"><input type="date" id="lap-from" style="padding:.6rem;border:2px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text)"><input type="date" id="lap-to" style="padding:.6rem;border:2px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text)"></div><button class="btn btn-primary" onclick="Pages.laporan.generate()">📊 Generate</button><button class="btn btn-outline" onclick="Pages.laporan.exportCSV()">📥 CSV</button></div><div id="lap-result"></div>';
+    await Pages.laporan.generate();
+  },
+  onPeriodeChange: function(){
+    var p=document.getElementById('lap-periode')?document.getElementById('lap-periode').value:'';
+    var dr=document.getElementById('lap-date-range');
+    if(dr) dr.classList.toggle('hidden',p!=='kustom');
+  },
+  generate: async function() {
+    var el=document.getElementById('lap-result');
+    el.innerHTML='<div class="loading-wrap"><div class="spinner"></div></div>';
+    var periodeEl=document.getElementById('lap-periode');
+    var periode=periodeEl?periodeEl.value:'harian';
+    var params={periode:periode};
+    if(periode==='kustom'){
+      var fromEl=document.getElementById('lap-from'); var toEl=document.getElementById('lap-to');
+      params.tanggalMulai=fromEl?fromEl.value:''; params.tanggalSelesai=toEl?toEl.value:'';
+    }
+    var r=await api('getLaporan',params);
+    if(!r||!r.success){el.innerHTML='<div class="empty-state"><p>'+(r?r.message:'Gagal')+'</p></div>';return;}
+    var d=r.data; Pages.laporan.data=d;
+    var stats=[['💰','Penjualan',fmt.currency(d.totalPenjualan),'positive'],['🧾','Transaksi',d.totalTransaksi,''],['💸','Pengeluaran',fmt.currency(d.totalPengeluaran),'negative'],['🏭','Modal',fmt.currency(d.totalModal),''],['📈','Laba Kotor',fmt.currency(d.labaKotor),d.labaKotor>=0?'positive':'negative'],['✨','Laba Bersih',fmt.currency(d.labaBersih),d.labaBersih>=0?'positive':'negative']];
+    var statHtml=stats.map(function(s){ return '<div class="laporan-stat-card"><div class="laporan-stat-label">'+s[0]+' '+s[1]+'</div><div class="laporan-stat-val '+s[3]+'">'+s[2]+'</div></div>'; }).join('');
+    var metodeHtml=(d.metodeSummary||[]).map(function(m){ return '<div class="flex justify-between items-center" style="padding:.5rem 0;border-bottom:1px solid var(--border)"><span>'+m.metode+'</span><div class="text-right"><div class="font-bold">'+fmt.currency(m.total)+'</div><div class="text-xs text-muted">'+m.jumlah+' transaksi</div></div></div>'; }).join('') || '<p class="text-muted text-center">Tidak ada data</p>';
+    var trxHtml=d.transaksi.length?d.transaksi.map(function(t){ return '<tr><td><span class="chip">'+t.nomorInvoice+'</span></td><td>'+fmt.dateTime(t.tanggal)+'</td><td>'+t.namaKasir+'</td><td><strong>'+fmt.currency(t.total)+'</strong></td><td>'+t.metodePembayaran+'</td></tr>'; }).join(''):'<tr><td colspan="5" class="text-center text-muted" style="padding:1rem">Tidak ada data</td></tr>';
+    el.innerHTML='<div class="laporan-stat">'+statHtml+'</div>'
+      +'<div class="card" style="margin-bottom:1rem"><div class="card-header"><span class="card-title">💳 Per Metode</span></div><div class="card-body">'+metodeHtml+'</div></div>'
+      +'<div class="card"><div class="card-header"><span class="card-title">📋 Detail Transaksi</span></div><div class="table-wrap"><table><thead><tr><th>Invoice</th><th>Tanggal</th><th>Kasir</th><th>Total</th><th>Metode</th></tr></thead><tbody>'+trxHtml+'</tbody></table></div></div>';
+  },
+  exportCSV: function() {
+    if(!Pages.laporan.data||!Pages.laporan.data.transaksi){Toast.warning('Generate laporan dulu');return;}
+    var rows=[['Invoice','Tanggal','Kasir','Total','Metode']].concat(Pages.laporan.data.transaksi.map(function(t){ return [t.nomorInvoice,fmt.dateTime(t.tanggal),t.namaKasir,t.total,t.metodePembayaran]; }));
+    var csv=rows.map(function(r){ return r.join(','); }).join('\n');
+    var a=document.createElement('a');
+    a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
+    a.download='laporan_'+new Date().toISOString().split('T')[0]+'.csv';
+    a.click();
+    Toast.success('CSV diunduh');
+  }
+};
+</script>
